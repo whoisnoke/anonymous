@@ -1081,8 +1081,15 @@ function toggleToken(id) {
   const tok = tokens.find(t => t.id === id);
   if (!tok || tok.type !== 'word') return;
   saveHistory(`"${tok.text.substring(0, 20)}"`);
-  tok.redacted = !tok.redacted;
+  const willRedact = !tok.redacted;
+  tok.redacted = willRedact;
   tok.suggested = false;
+
+  if (willRedact) {
+    const added = addCustomTermFromManual(tok.text);
+    if (added) return;
+  }
+
   markSessionDirty();
   renderEditor();
 }
@@ -1090,14 +1097,74 @@ function toggleToken(id) {
 function redactRange(from, to) {
   saveHistory('Phrasenauswahl');
   let changed = false;
+  const phraseParts = [];
+
   for (let i = from; i <= to; i++) {
     if (tokens[i] && tokens[i].type === 'word') {
       tokens[i].redacted = true;
       tokens[i].suggested = false;
       changed = true;
+      phraseParts.push(tokens[i].text);
     }
   }
-  if (changed) { markSessionDirty(); renderEditor(); }
+
+  if (changed) {
+    const phrase = phraseParts.join(' ').trim();
+    if (phrase) {
+      addCustomTermFromManual(phrase);
+      return;
+    }
+    markSessionDirty();
+    renderEditor();
+  }
+}
+
+function normalizeCustomTerm(term) {
+  return term
+    .trim()
+    .replace(/\s+/g, ' ')
+    .toLowerCase();
+}
+
+function addCustomTermValue(value) {
+  const normalized = normalizeCustomTerm(value);
+  if (!normalized) return false;
+  const exists = customTerms.some(t => normalizeCustomTerm(t) === normalized);
+  if (exists) return false;
+  customTerms.push(value.trim());
+  renderCustomTermsList();
+  return true;
+}
+
+function applyCustomTermsToAllTokens() {
+  let changed = false;
+  const wordIndices = tokens.map((t, i) => i).filter(i => tokens[i].type === 'word');
+
+  customTerms.forEach(term => {
+    const termWords = term.trim().split(/\s+/).filter(Boolean);
+    if (termWords.length === 0) return;
+    forEachTermMatch(wordIndices, termWords, (idx) => {
+      if (!tokens[idx].redacted) {
+        tokens[idx].redacted = true;
+        tokens[idx].suggested = false;
+        changed = true;
+      }
+    });
+  });
+
+  if (changed) markSessionDirty();
+  renderEditor();
+}
+
+function addCustomTermFromManual(value) {
+  if (!value) return false;
+  const added = addCustomTermValue(value);
+  if (!added) return false;
+  if (isEditorMode) {
+    applyCustomTermsToAllTokens();
+    showToast(`„${value.trim()}“ hinzugefügt und alle Treffer geschwärzt.`, 'check-circle');
+  }
+  return true;
 }
 
 // ===========================
@@ -1163,22 +1230,19 @@ function addCustomTerm() {
   const value = input.value.trim();
   if (!value) return;
 
-  const exists = customTerms.some(t => t.toLowerCase() === value.toLowerCase());
-  if (exists) {
+  const added = addCustomTermValue(value);
+  if (!added) {
     showToast('Begriff ist bereits in der Liste.', 'info');
     input.value = '';
     return;
   }
 
-  customTerms.push(value);
-  renderCustomTermsList();
   markSessionDirty();
   input.value = '';
   input.focus();
 
   if (isEditorMode) {
-    markCustomTermSuggestions();
-    renderEditor();
+    applyCustomTermsToAllTokens();
   }
   showToast(`„${value}" zur Liste hinzugefügt.`, 'plus');
 }
