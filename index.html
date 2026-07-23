@@ -1,0 +1,1450 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Redact-o-Mat — DSGVO Schwärzungstool</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,400;0,500;1,400&family=Syne:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+<script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+<style>
+  :root {
+    --navy: #1E293B;
+    --navy-light: #334155;
+    --navy-faint: #E8EDF3;
+    --bg: #F8FAFC;
+    --amber: #D97706;
+    --amber-light: #FEF3C7;
+    --amber-border: #FCD34D;
+    --black-mark: #0F172A;
+    --green: #059669;
+    --green-light: #D1FAE5;
+    --red: #DC2626;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Syne', sans-serif;
+    background: var(--bg);
+    color: var(--navy);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* HEADER */
+  header {
+    background: var(--navy);
+    color: white;
+    padding: 0 2rem;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 3px solid #0F172A;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    flex-shrink: 0;
+  }
+
+  .header-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .brand-badge {
+    background: var(--amber);
+    color: white;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    padding: 2px 7px;
+    border-radius: 2px;
+    text-transform: uppercase;
+  }
+
+  .header-brand h1 {
+    font-size: 18px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: white;
+  }
+
+  .header-meta {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: rgba(255,255,255,0.45);
+    letter-spacing: 0.05em;
+  }
+
+  /* LAYOUT */
+  .main-layout {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+    min-height: calc(100vh - 56px);
+  }
+
+  .panel {
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid #CBD5E1;
+  }
+
+  .panel:last-child { border-right: none; }
+
+  .panel-header {
+    padding: 14px 20px 12px;
+    border-bottom: 1px solid #CBD5E1;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: white;
+    flex-shrink: 0;
+  }
+
+  .panel-header h2 {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--navy-light);
+  }
+
+  .panel-icon {
+    color: var(--navy-light);
+    opacity: 0.7;
+  }
+
+  /* INPUT AREA */
+  #inputTextarea {
+    flex: 1;
+    resize: none;
+    border: none;
+    outline: none;
+    padding: 20px;
+    font-family: 'DM Mono', monospace;
+    font-size: 13.5px;
+    line-height: 1.8;
+    color: var(--navy);
+    background: transparent;
+    width: 100%;
+  }
+
+  #inputTextarea::placeholder {
+    color: #94A3B8;
+    font-style: italic;
+  }
+
+  .input-panel {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .input-panel textarea {
+    min-height: 300px;
+  }
+
+  /* TOOLBAR */
+  .toolbar {
+    padding: 10px 16px;
+    border-top: 1px solid #E2E8F0;
+    background: white;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    flex-shrink: 0;
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-family: 'Syne', sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    border: 1.5px solid transparent;
+    white-space: nowrap;
+  }
+
+  .btn-primary {
+    background: var(--navy);
+    color: white;
+    border-color: var(--navy);
+  }
+  .btn-primary:hover { background: var(--navy-light); border-color: var(--navy-light); }
+
+  .btn-ghost {
+    background: transparent;
+    color: var(--navy-light);
+    border-color: #CBD5E1;
+  }
+  .btn-ghost:hover { background: var(--navy-faint); border-color: var(--navy-light); }
+
+  .btn-amber {
+    background: var(--amber-light);
+    color: var(--amber);
+    border-color: var(--amber-border);
+  }
+  .btn-amber:hover { background: #FDE68A; }
+
+  .btn-danger {
+    background: #FEE2E2;
+    color: var(--red);
+    border-color: #FECACA;
+  }
+  .btn-danger:hover { background: #FCA5A5; }
+
+  .btn-success {
+    background: var(--green-light);
+    color: var(--green);
+    border-color: #6EE7B7;
+  }
+  .btn-success:hover { background: #A7F3D0; }
+
+  .btn-icon {
+    padding: 6px;
+    border-radius: 4px;
+  }
+
+  .separator {
+    width: 1px;
+    height: 24px;
+    background: #E2E8F0;
+    margin: 0 2px;
+  }
+
+  /* EDITOR */
+  #editorPane {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+    font-family: 'DM Mono', monospace;
+    font-size: 13.5px;
+    line-height: 1.95;
+    color: var(--navy);
+    user-select: none;
+    cursor: default;
+    word-break: break-word;
+    min-height: 300px;
+  }
+
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: #94A3B8;
+    text-align: center;
+    gap: 12px;
+    min-height: 200px;
+  }
+
+  .empty-state svg { opacity: 0.3; }
+  .empty-state p { font-size: 13px; line-height: 1.6; max-width: 240px; }
+
+  /* TOKENS */
+  .token {
+    display: inline;
+    border-radius: 2px;
+    cursor: pointer;
+    transition: background 0.1s ease;
+    padding: 1px 0;
+    position: relative;
+  }
+
+  .token:hover {
+    background: rgba(30, 41, 59, 0.08);
+  }
+
+  .token.redacted {
+    background: var(--black-mark) !important;
+    color: var(--black-mark) !important;
+    border-radius: 3px;
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .token.suggested {
+    background: var(--amber-light);
+    outline: 1.5px solid var(--amber-border);
+    border-radius: 2px;
+  }
+
+  .token.suggested:hover {
+    background: #FDE68A;
+  }
+
+  .token.whitespace {
+    cursor: default;
+  }
+  .token.whitespace:hover { background: transparent; }
+
+  .token.newline {
+    display: block;
+    height: 0;
+    cursor: default;
+  }
+  .token.newline:hover { background: transparent; }
+
+  /* SELECTION highlight */
+  .token.in-selection {
+    background: rgba(30, 41, 59, 0.15) !important;
+  }
+
+  /* STATS BAR */
+  .stats-bar {
+    padding: 8px 20px;
+    border-top: 1px solid #E2E8F0;
+    background: #F1F5F9;
+    display: flex;
+    gap: 20px;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: #64748B;
+    flex-shrink: 0;
+  }
+
+  .stat { display: flex; align-items: center; gap: 5px; }
+  .stat-dot { width: 7px; height: 7px; border-radius: 50%; }
+  .stat-dot.red { background: var(--red); }
+  .stat-dot.amber { background: var(--amber); }
+
+  /* TOAST */
+  #toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(60px);
+    background: var(--navy);
+    color: white;
+    padding: 10px 18px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    z-index: 1000;
+    transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.25s ease;
+    opacity: 0;
+    pointer-events: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 8px 24px rgba(15,23,42,0.35);
+  }
+  #toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+
+  /* SHORTCUT HINTS */
+  .shortcut-hint {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    background: #E2E8F0;
+    color: #64748B;
+    padding: 1px 5px;
+    border-radius: 3px;
+    margin-left: 2px;
+  }
+
+  /* IMAGE EXPORT OVERLAY */
+  #exportOverlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15,23,42,0.6);
+    z-index: 500;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s;
+  }
+  #exportOverlay.show { opacity: 1; pointer-events: all; }
+
+  .export-card {
+    background: white;
+    border-radius: 8px;
+    padding: 28px;
+    width: 360px;
+    box-shadow: 0 24px 64px rgba(15,23,42,0.3);
+  }
+  .export-card h3 { font-size: 16px; font-weight: 700; margin-bottom: 6px; }
+  .export-card p { font-size: 12px; color: #64748B; margin-bottom: 20px; line-height: 1.6; }
+  .export-card .btn-row { display: flex; gap: 10px; justify-content: flex-end; }
+
+  /* RIGHT PANEL */
+  .right-panel {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .action-section {
+    padding: 16px 20px;
+    border-bottom: 1px solid #E2E8F0;
+    background: white;
+    flex-shrink: 0;
+  }
+
+  .action-section h3 {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #94A3B8;
+    margin-bottom: 10px;
+  }
+
+  .action-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .action-btn-large {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    padding: 12px 14px;
+    border-radius: 6px;
+    border: 1.5px solid #E2E8F0;
+    background: white;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-align: left;
+  }
+  .action-btn-large:hover { border-color: var(--navy-light); background: var(--navy-faint); }
+  .action-btn-large .abl-title { font-size: 12px; font-weight: 700; color: var(--navy); }
+  .action-btn-large .abl-desc { font-size: 10px; color: #94A3B8; line-height: 1.4; }
+  .action-btn-large svg { color: var(--navy-light); margin-bottom: 4px; }
+
+  .auto-detect-section { flex-shrink: 0; }
+
+  .history-section {
+    flex: 1;
+    padding: 16px 20px;
+    overflow-y: auto;
+    background: #FAFAFA;
+  }
+  .history-section h3 {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #94A3B8;
+    margin-bottom: 10px;
+  }
+
+  .history-entry {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 10px;
+    border-radius: 4px;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--navy);
+    border: 1px solid #E2E8F0;
+    background: white;
+    margin-bottom: 6px;
+  }
+  .history-entry .he-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+    max-width: 140px;
+  }
+  .history-entry .he-badge {
+    background: #0F172A;
+    color: white;
+    font-size: 9px;
+    padding: 1px 5px;
+    border-radius: 2px;
+    font-weight: 600;
+    flex-shrink: 0;
+  }
+  .history-entry .he-undo {
+    cursor: pointer;
+    color: #94A3B8;
+    margin-left: 6px;
+    flex-shrink: 0;
+  }
+  .history-entry .he-undo:hover { color: var(--red); }
+
+  .no-history {
+    font-size: 12px;
+    color: #CBD5E1;
+    text-align: center;
+    padding: 20px 0;
+    font-family: 'DM Mono', monospace;
+  }
+
+  /* CUSTOM TERM CHIPS */
+  .term-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 6px 4px 10px;
+    border-radius: 20px;
+    background: var(--amber-light);
+    border: 1.5px solid var(--amber-border);
+    font-family: 'DM Mono', monospace;
+    font-size: 11.5px;
+    color: var(--amber);
+    max-width: 100%;
+  }
+  .term-chip span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 150px;
+  }
+  .term-chip .tc-remove {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    cursor: pointer;
+    color: var(--amber);
+    flex-shrink: 0;
+  }
+  .term-chip .tc-remove:hover {
+    background: var(--amber);
+    color: white;
+  }
+
+  /* PROGRESS BAR */
+  .redaction-meter {
+    height: 3px;
+    background: #E2E8F0;
+    position: relative;
+    flex-shrink: 0;
+  }
+  .redaction-meter-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--amber), var(--red));
+    transition: width 0.3s ease;
+    border-radius: 0 2px 2px 0;
+  }
+
+  /* SCROLLBAR */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: #94A3B8; }
+
+  /* RESPONSIVE */
+  @media (max-width: 768px) {
+    .main-layout { grid-template-columns: 1fr; }
+    .panel { border-right: none; border-bottom: 1px solid #CBD5E1; }
+    .action-grid { grid-template-columns: 1fr; }
+  }
+
+  /* ANIMATION */
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+  .token { animation: fadeIn 0.15s ease forwards; }
+
+  /* DSGVO badge pulse */
+  @keyframes pulse-amber {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(217, 119, 6, 0.4); }
+    50% { box-shadow: 0 0 0 5px rgba(217, 119, 6, 0); }
+  }
+  .brand-badge { animation: pulse-amber 3s infinite; }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <div class="header-brand">
+    <span class="brand-badge">DSGVO</span>
+    <h1>Redact-o-Mat</h1>
+  </div>
+  <div class="header-meta">100% CLIENT-SEITIG · KEINE DATENÜBERTRAGUNG · v1.0</div>
+</header>
+
+<!-- MAIN -->
+<div class="main-layout">
+
+  <!-- LEFT PANEL: INPUT + EDITOR -->
+  <div class="panel input-panel">
+    <div class="panel-header">
+      <i data-lucide="file-text" size="14" class="panel-icon"></i>
+      <h2 id="panelTitle">Texteingabe</h2>
+    </div>
+
+    <!-- INPUT TEXTAREA -->
+    <textarea id="inputTextarea"
+      placeholder="Fügen Sie hier den zu schwärzenden Text ein…&#10;&#10;Beispiel: Max Mustermann, geboren am 01.01.1980, wohnhaft in der Musterstraße 12, hat per E-Mail an max@example.de eine Anfrage gestellt.&#10;&#10;Klicken Sie auf „Analyse starten", um den Schwärzungs-Editor zu öffnen."></textarea>
+
+    <!-- EDITOR PANE (hidden initially) -->
+    <div id="editorPane" style="display:none;">
+      <div class="empty-state" id="editorEmpty">
+        <i data-lucide="mouse-pointer-click" size="32"></i>
+        <p>Editor bereit. Klicken Sie Wörter an, um sie zu schwärzen.</p>
+      </div>
+    </div>
+
+    <div class="redaction-meter" id="meterBar" style="display:none;">
+      <div class="redaction-meter-fill" id="meterFill" style="width:0%"></div>
+    </div>
+
+    <!-- TOOLBAR -->
+    <div class="toolbar" id="inputToolbar">
+      <button class="btn btn-primary" id="btnAnalyze" onclick="startAnalysis()">
+        <i data-lucide="zap" size="13"></i> Analyse starten
+      </button>
+    </div>
+
+    <div class="toolbar" id="editorToolbar" style="display:none;">
+      <button class="btn btn-ghost" id="btnUndo" onclick="undo()">
+        <i data-lucide="undo-2" size="13"></i> Rückgängig
+        <span class="shortcut-hint">Strg+Z</span>
+      </button>
+      <div class="separator"></div>
+      <button class="btn btn-danger" onclick="clearAll()">
+        <i data-lucide="eraser" size="13"></i> Alle aufheben
+      </button>
+      <button class="btn btn-ghost" onclick="resetToInput()">
+        <i data-lucide="edit-3" size="13"></i> Text ändern
+      </button>
+    </div>
+
+    <!-- STATS BAR -->
+    <div class="stats-bar" id="statsBar" style="display:none;">
+      <div class="stat">
+        <div class="stat-dot" style="background:#CBD5E1"></div>
+        <span id="statTotal">0 Token</span>
+      </div>
+      <div class="stat">
+        <div class="stat-dot red"></div>
+        <span id="statRedacted">0 geschwärzt</span>
+      </div>
+      <div class="stat">
+        <div class="stat-dot amber"></div>
+        <span id="statSuggested">0 Vorschläge</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT PANEL: ACTIONS -->
+  <div class="panel right-panel">
+    <div class="panel-header">
+      <i data-lucide="settings-2" size="14" class="panel-icon"></i>
+      <h2>Aktionen & Export</h2>
+    </div>
+
+    <!-- AUTO DETECT -->
+    <div class="action-section auto-detect-section">
+      <h3>Auto-Erkennung</h3>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button class="btn btn-amber" onclick="autoDetect('dates')">
+          <i data-lucide="calendar" size="13"></i> Datumsangaben
+        </button>
+        <button class="btn btn-amber" onclick="autoDetect('emails')">
+          <i data-lucide="at-sign" size="13"></i> E-Mail-Adressen
+        </button>
+        <button class="btn btn-amber" onclick="autoDetect('all')">
+          <i data-lucide="scan-search" size="13"></i> Alles erkennen
+        </button>
+      </div>
+    </div>
+
+    <!-- CUSTOM TERMS -->
+    <div class="action-section custom-terms-section">
+      <h3>Eigene Begriffe</h3>
+      <div style="display:flex; gap:6px; margin-bottom:10px;">
+        <input id="customTermInput" type="text" placeholder="z.B. Musterstraße, Firma XY…"
+          style="flex:1; padding:7px 9px; border:1.5px solid #CBD5E1; border-radius:4px; font-family:'DM Mono',monospace; font-size:12px; color:var(--navy); outline:none;"
+          onfocus="this.style.borderColor='var(--navy)'" onblur="this.style.borderColor='#CBD5E1'"
+          onkeydown="if(event.key==='Enter'){event.preventDefault(); addCustomTerm();}">
+        <button class="btn btn-ghost btn-icon" title="Begriff hinzufügen" onclick="addCustomTerm()">
+          <i data-lucide="plus" size="14"></i>
+        </button>
+      </div>
+      <div id="customTermsList" style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px;">
+        <p class="no-history" style="width:100%; padding:6px 0;">Noch keine eigenen Begriffe</p>
+      </div>
+      <button class="btn btn-amber" style="width:100%; justify-content:center;" onclick="redactCustomTerms()">
+        <i data-lucide="target" size="13"></i> Eigene Begriffe schwärzen
+      </button>
+    </div>
+
+    <!-- EXPORT -->
+    <div class="action-section">
+      <h3>Export</h3>
+      <div class="action-grid">
+        <button class="action-btn-large" onclick="copyText()">
+          <i data-lucide="clipboard-copy" size="18"></i>
+          <div class="abl-title">Text kopieren</div>
+          <div class="abl-desc">Geschwärzter Text mit [ANONYMISIERT]<br><span class="shortcut-hint">Strg+C</span></div>
+        </button>
+        <button class="action-btn-large" onclick="showExportOverlay()">
+          <i data-lucide="file-down" size="18"></i>
+          <div class="abl-title">Als PDF</div>
+          <div class="abl-desc">Professioneller PDF-Export mit echten Schwärzungsbalken</div>
+        </button>
+        <button class="action-btn-large" onclick="copyTextXXX()">
+          <i data-lucide="clipboard" size="18"></i>
+          <div class="abl-title">Mit [XXX]</div>
+          <div class="abl-desc">Alternative Platzhalter-Kennzeichnung</div>
+        </button>
+        <button class="action-btn-large" onclick="downloadTxt()">
+          <i data-lucide="download" size="18"></i>
+          <div class="abl-title">Als .txt</div>
+          <div class="abl-desc">Textdatei mit [ANONYMISIERT] herunterladen</div>
+        </button>
+      </div>
+    </div>
+
+    <!-- HISTORY -->
+    <div class="history-section">
+      <h3>Schwärzungsprotokoll</h3>
+      <div id="historyList"><p class="no-history">Noch keine Schwärzungen</p></div>
+    </div>
+  </div>
+</div>
+
+<!-- EXPORT OVERLAY -->
+<div id="exportOverlay">
+  <div class="export-card">
+    <h3>PDF exportieren</h3>
+    <p>Erzeugt ein PDF-Dokument mit echten schwarzen Schwärzungsbalken (keine Metadaten des Originaltexts in den geschwärzten Bereichen). Kann direkt archiviert oder weitergegeben werden.</p>
+    <div style="margin-bottom:16px;">
+      <label style="font-size:12px; font-weight:600; color:var(--navy-light); display:block; margin-bottom:6px;">Dokumenttitel (optional)</label>
+      <input id="pdfTitle" type="text" placeholder="z.B. Bescheid vom 24.02.2026"
+        style="width:100%; padding:8px 10px; border:1.5px solid #CBD5E1; border-radius:4px; font-family:'DM Mono',monospace; font-size:12px; color:var(--navy); outline:none;"
+        onfocus="this.style.borderColor='var(--navy)'" onblur="this.style.borderColor='#CBD5E1'">
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-ghost" onclick="hideExportOverlay()">Abbrechen</button>
+      <button class="btn btn-primary" onclick="exportPDF()" id="btnExportPDF">
+        <i data-lucide="file-down" size="13"></i> PDF erstellen
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast">
+  <i data-lucide="check-circle" size="16"></i>
+  <span id="toastMsg">Kopiert!</span>
+</div>
+
+<script>
+// ===========================
+// STATE
+// ===========================
+let tokens = []; // { id, text, type, redacted, suggested }
+let history = []; // stack of token-state snapshots for undo
+let isEditorMode = false;
+let selectionStart = null;
+let customTerms = []; // user-defined words/phrases to redact
+
+// Shared helper: strip common surrounding punctuation before matching
+function stripPunct(s) {
+  return s.replace(/^[\s"'„"([\-–—]+/, '').replace(/[\s"'"'.,;:!?)[\]]+$/, '');
+}
+
+// ===========================
+// INIT LUCIDE
+// ===========================
+document.addEventListener('DOMContentLoaded', () => {
+  lucide.createIcons();
+  loadCustomTerms();
+  renderCustomTermsList();
+});
+
+// ===========================
+// ANALYSIS
+// ===========================
+function startAnalysis() {
+  const text = document.getElementById('inputTextarea').value.trim();
+  if (!text) {
+    showToast('Bitte zuerst Text eingeben.', 'alert-circle');
+    return;
+  }
+  tokenize(text);
+  renderEditor();
+  switchToEditorMode();
+}
+
+function tokenize(text) {
+  tokens = [];
+  let id = 0;
+
+  // Split by word boundaries, preserving whitespace and newlines as tokens
+  const regex = /(\r?\n|\s+|[^\s\r\n]+)/g;
+  let match;
+  while ((match = regex.exec(text)) !== null) {
+    const t = match[0];
+    let type = 'word';
+    if (/^\r?\n$/.test(t)) type = 'newline';
+    else if (/^\s+$/.test(t)) type = 'whitespace';
+
+    tokens.push({ id: id++, text: t, type, redacted: false, suggested: false });
+  }
+
+  // Auto-suggest patterns
+  suggestPatterns();
+}
+
+function suggestPatterns() {
+  const dateRx  = /^\d{1,2}\.\d{1,2}\.\d{2,4}$/;
+  const emailRx = /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/;
+  tokens.forEach(t => {
+    if (t.type === 'word') {
+      const clean = stripPunct(t.text);
+      if (dateRx.test(clean) || emailRx.test(clean)) {
+        t.suggested = true;
+      }
+    }
+  });
+  markCustomTermSuggestions();
+}
+
+// ===========================
+// RENDER EDITOR
+// ===========================
+function renderEditor() {
+  const pane = document.getElementById('editorPane');
+  pane.innerHTML = '';
+
+  if (tokens.length === 0) {
+    pane.innerHTML = '<div class="empty-state"><p>Kein Text vorhanden.</p></div>';
+    return;
+  }
+
+  tokens.forEach((tok, idx) => {
+    if (tok.type === 'newline') {
+      const br = document.createElement('br');
+      pane.appendChild(br);
+      return;
+    }
+
+    if (tok.type === 'whitespace') {
+      const span = document.createElement('span');
+      span.className = 'token whitespace';
+      span.textContent = tok.text;
+      pane.appendChild(span);
+      return;
+    }
+
+    const span = document.createElement('span');
+    span.className = 'token' + (tok.redacted ? ' redacted' : (tok.suggested ? ' suggested' : ''));
+    span.textContent = tok.text;
+    span.dataset.id = tok.id;
+    span.dataset.idx = idx;
+
+    span.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleToken(tok.id);
+    });
+
+    span.addEventListener('mousedown', (e) => {
+      if (e.button === 0) {
+        selectionStart = idx;
+      }
+    });
+
+    span.addEventListener('mouseup', (e) => {
+      if (selectionStart !== null && selectionStart !== idx) {
+        const from = Math.min(selectionStart, idx);
+        const to = Math.max(selectionStart, idx);
+        redactRange(from, to);
+        selectionStart = null;
+      } else {
+        selectionStart = null;
+      }
+    });
+
+    pane.appendChild(span);
+  });
+
+  updateStats();
+  updateMeter();
+  updateHistory();
+}
+
+// ===========================
+// TOGGLE / REDACT
+// ===========================
+function toggleToken(id) {
+  const tok = tokens.find(t => t.id === id);
+  if (!tok || tok.type !== 'word') return;
+  saveHistory(`"${tok.text.substring(0, 20)}"`);
+  tok.redacted = !tok.redacted;
+  tok.suggested = false;
+  renderEditor();
+}
+
+function redactRange(from, to) {
+  saveHistory('Phrasenauswahl');
+  let changed = false;
+  for (let i = from; i <= to; i++) {
+    if (tokens[i] && tokens[i].type === 'word') {
+      tokens[i].redacted = true;
+      tokens[i].suggested = false;
+      changed = true;
+    }
+  }
+  if (changed) renderEditor();
+}
+
+// ===========================
+// AUTO DETECT
+// ===========================
+function autoDetect(type) {
+  if (!isEditorMode) {
+    showToast('Bitte zuerst Analyse starten.', 'alert-circle');
+    return;
+  }
+
+  // Robust patterns — strip leading/trailing punctuation before testing
+  const dateRx   = /^\d{1,2}\.\d{1,2}\.\d{2,4}$/;
+  const emailRx  = /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/;
+
+  let count = 0;
+  saveHistory(`Auto-Erkennung: ${type}`);
+
+  tokens.forEach(tok => {
+    if (tok.type !== 'word') return;
+    const clean = stripPunct(tok.text);
+    let match = false;
+
+    if ((type === 'dates'  || type === 'all') && dateRx.test(clean))  match = true;
+    if ((type === 'emails' || type === 'all') && emailRx.test(clean)) match = true;
+
+    if (match && !tok.redacted) {
+      tok.redacted = true;
+      tok.suggested = false;
+      count++;
+    }
+  });
+
+  renderEditor();
+  const label = { dates: 'Datumsangaben', emails: 'E-Mail-Adressen', all: 'Muster' }[type];
+  showToast(count > 0 ? `${count} ${label} geschwärzt.` : `Keine ${label} gefunden.`, count > 0 ? 'check-circle' : 'info');
+}
+
+// ===========================
+// CUSTOM TERMS (eigene zu schwärzende Begriffe)
+// ===========================
+const CUSTOM_TERMS_KEY = 'redactomat_custom_terms';
+
+function loadCustomTerms() {
+  try {
+    const raw = localStorage.getItem(CUSTOM_TERMS_KEY);
+    customTerms = raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    customTerms = [];
+  }
+}
+
+function saveCustomTermsToStorage() {
+  try {
+    localStorage.setItem(CUSTOM_TERMS_KEY, JSON.stringify(customTerms));
+  } catch (e) { /* Speicher nicht verfügbar — Liste bleibt nur für diese Sitzung erhalten */ }
+}
+
+function renderCustomTermsList() {
+  const container = document.getElementById('customTermsList');
+  if (customTerms.length === 0) {
+    container.innerHTML = '<p class="no-history" style="width:100%; padding:6px 0;">Noch keine eigenen Begriffe</p>';
+    return;
+  }
+  container.innerHTML = '';
+  customTerms.forEach((term, i) => {
+    const chip = document.createElement('div');
+    chip.className = 'term-chip';
+    chip.innerHTML = `
+      <span title="${escapeHtml(term)}">${escapeHtml(term)}</span>
+      <span class="tc-remove" title="Entfernen" onclick="removeCustomTerm(${i})">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      </span>
+    `;
+    container.appendChild(chip);
+  });
+}
+
+function addCustomTerm() {
+  const input = document.getElementById('customTermInput');
+  const value = input.value.trim();
+  if (!value) return;
+
+  const exists = customTerms.some(t => t.toLowerCase() === value.toLowerCase());
+  if (exists) {
+    showToast('Begriff ist bereits in der Liste.', 'info');
+    input.value = '';
+    return;
+  }
+
+  customTerms.push(value);
+  saveCustomTermsToStorage();
+  renderCustomTermsList();
+  input.value = '';
+  input.focus();
+
+  if (isEditorMode) {
+    markCustomTermSuggestions();
+    renderEditor();
+  }
+  showToast(`„${value}" zur Liste hinzugefügt.`, 'plus');
+}
+
+function removeCustomTerm(index) {
+  const removed = customTerms.splice(index, 1);
+  saveCustomTermsToStorage();
+  renderCustomTermsList();
+  if (isEditorMode && removed.length) {
+    // Vorschlags-Markierungen neu berechnen (bereits geschwärzte Wörter bleiben unangetastet)
+    tokens.forEach(t => { if (t.type === 'word') t.suggested = false; });
+    suggestPatterns();
+    renderEditor();
+  }
+}
+
+// Markiert Tokens, die zu einem eigenen Begriff passen, als "Vorschlag" (gelb),
+// ohne sie automatisch zu schwärzen.
+function markCustomTermSuggestions() {
+  if (customTerms.length === 0) return;
+  const wordIndices = tokens.map((t, i) => i).filter(i => tokens[i].type === 'word');
+
+  customTerms.forEach(term => {
+    const termWords = term.trim().split(/\s+/).filter(Boolean);
+    if (termWords.length === 0) return;
+    forEachTermMatch(wordIndices, termWords, (idx) => {
+      if (!tokens[idx].redacted) tokens[idx].suggested = true;
+    });
+  });
+}
+
+// Findet Vorkommen einer (ggf. mehrwortigen) Begriffsfolge in der Tokenliste
+// und ruft für jeden passenden Wort-Token onMatch(idx) auf.
+function forEachTermMatch(wordIndices, termWords, onMatch) {
+  const targets = termWords.map(w => w.toLowerCase());
+  for (let i = 0; i < wordIndices.length; i++) {
+    let ok = true;
+    const matchedIdx = [];
+    let wi = i;
+    for (let w = 0; w < targets.length; w++) {
+      if (wi >= wordIndices.length) { ok = false; break; }
+      const idx = wordIndices[wi];
+      const clean = stripPunct(tokens[idx].text).toLowerCase();
+      if (clean !== targets[w]) { ok = false; break; }
+      matchedIdx.push(idx);
+      wi++;
+    }
+    if (ok) matchedIdx.forEach(idx => onMatch(idx));
+  }
+}
+
+function redactCustomTerms() {
+  if (!isEditorMode) {
+    showToast('Bitte zuerst Analyse starten.', 'alert-circle');
+    return;
+  }
+  if (customTerms.length === 0) {
+    showToast('Bitte zuerst eigene Begriffe hinzufügen.', 'alert-circle');
+    return;
+  }
+
+  saveHistory('Eigene Begriffe');
+  let count = 0;
+  const wordIndices = tokens.map((t, i) => i).filter(i => tokens[i].type === 'word');
+
+  customTerms.forEach(term => {
+    const termWords = term.trim().split(/\s+/).filter(Boolean);
+    if (termWords.length === 0) return;
+    forEachTermMatch(wordIndices, termWords, (idx) => {
+      if (!tokens[idx].redacted) {
+        tokens[idx].redacted = true;
+        tokens[idx].suggested = false;
+        count++;
+      }
+    });
+  });
+
+  renderEditor();
+  showToast(count > 0 ? `${count} Wort(e) aus eigener Liste geschwärzt.` : 'Keine Treffer für eigene Begriffe gefunden.', count > 0 ? 'check-circle' : 'info');
+}
+
+// ===========================
+// UNDO
+// ===========================
+function saveHistory(label) {
+  history.push({ label, snapshot: tokens.map(t => ({ ...t })) });
+  if (history.length > 50) history.shift();
+}
+
+function undo() {
+  if (history.length === 0) {
+    showToast('Keine weiteren Schritte.', 'info');
+    return;
+  }
+  const prev = history.pop();
+  tokens = prev.snapshot;
+  renderEditor();
+  showToast('Rückgängig gemacht.', 'undo-2');
+}
+
+// ===========================
+// CLEAR
+// ===========================
+function clearAll() {
+  saveHistory('Alle aufheben');
+  tokens.forEach(t => { t.redacted = false; t.suggested = false; });
+  renderEditor();
+  showToast('Alle Schwärzungen aufgehoben.', 'eraser');
+}
+
+// ===========================
+// EXPORT: TEXT
+// ===========================
+function getProcessedText(placeholder = '[ANONYMISIERT]') {
+  return tokens.map(t => t.redacted ? placeholder : t.text).join('');
+}
+
+function copyText() {
+  const text = getProcessedText('[ANONYMISIERT]');
+  navigator.clipboard.writeText(text).then(() => {
+    showToast('Text kopiert!', 'clipboard-copy');
+  });
+}
+
+function copyTextXXX() {
+  const text = getProcessedText('[XXX]');
+  navigator.clipboard.writeText(text).then(() => {
+    showToast('Text mit [XXX] kopiert!', 'clipboard');
+  });
+}
+
+function downloadTxt() {
+  const text = getProcessedText('[ANONYMISIERT]');
+  const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `redact-o-mat-${Date.now()}.txt`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('Datei wird heruntergeladen.', 'download');
+}
+
+// ===========================
+// EXPORT: PDF (via pdf-lib, clientseitig)
+// ===========================
+function showExportOverlay() {
+  if (!isEditorMode) {
+    showToast('Bitte zuerst Analyse starten.', 'alert-circle');
+    return;
+  }
+  document.getElementById('exportOverlay').classList.add('show');
+  setTimeout(() => lucide.createIcons(), 50);
+}
+function hideExportOverlay() {
+  document.getElementById('exportOverlay').classList.remove('show');
+}
+
+async function exportPDF() {
+  const btn = document.getElementById('btnExportPDF');
+  btn.disabled = true;
+  btn.innerHTML = '<span style="opacity:.6">Erstelle PDF…</span>';
+
+  try {
+    const { PDFDocument, rgb, StandardFonts } = PDFLib;
+
+    const pdfDoc = await PDFDocument.create();
+    pdfDoc.setTitle(document.getElementById('pdfTitle').value || 'Redact-o-Mat Export');
+    pdfDoc.setAuthor('Redact-o-Mat (DSGVO)');
+    pdfDoc.setCreator('Redact-o-Mat v1.0');
+
+    const font      = await pdfDoc.embedFont(StandardFonts.Courier);
+    const fontBold  = await pdfDoc.embedFont(StandardFonts.CourierBold);
+
+    // Page setup (A4)
+    const PAGE_W = 595.28, PAGE_H = 841.89;
+    const MARGIN = 56;
+    const CONTENT_W = PAGE_W - MARGIN * 2;
+    const FONT_SIZE = 11;
+    const LINE_H    = FONT_SIZE * 1.7;
+    const HEADER_H  = 48;
+    const FOOTER_H  = 32;
+    const USABLE_H  = PAGE_H - MARGIN - HEADER_H - FOOTER_H;
+    const REDACT_PAD_X = 2, REDACT_PAD_Y = 1.5;
+
+    // Color constants
+    const cNavy   = rgb(0.118, 0.161, 0.231);
+    const cBlack  = rgb(0.059, 0.090, 0.122);
+    const cGray   = rgb(0.392, 0.455, 0.545);
+    const cAmber  = rgb(0.851, 0.467, 0.024);
+    const cWhite  = rgb(1, 1, 1);
+    const cBgLine = rgb(0.969, 0.980, 0.988);
+
+    let page = pdfDoc.addPage([PAGE_W, PAGE_H]);
+    let pageNum = 1;
+    const totalPages = () => pdfDoc.getPageCount();
+
+    function drawPageChrome(p, pn) {
+      // Header bar
+      p.drawRectangle({ x: 0, y: PAGE_H - HEADER_H, width: PAGE_W, height: HEADER_H, color: cNavy });
+      p.drawText('REDACT-O-MAT', { x: MARGIN, y: PAGE_H - HEADER_H + 18, size: 13, font: fontBold, color: cWhite });
+      const badge = 'DSGVO-EXPORT';
+      const bw = fontBold.widthOfTextAtSize(badge, 8);
+      p.drawRectangle({ x: MARGIN + 120, y: PAGE_H - HEADER_H + 15, width: bw + 10, height: 13, color: cAmber });
+      p.drawText(badge, { x: MARGIN + 125, y: PAGE_H - HEADER_H + 18, size: 8, font: fontBold, color: cWhite });
+
+      const docTitle = document.getElementById('pdfTitle').value || 'Schwärzungsdokument';
+      p.drawText(docTitle, { x: MARGIN, y: PAGE_H - HEADER_H + 5, size: 8, font, color: rgb(0.6, 0.65, 0.72) });
+
+      // Footer
+      p.drawLine({ start: { x: MARGIN, y: FOOTER_H }, end: { x: PAGE_W - MARGIN, y: FOOTER_H }, thickness: 0.5, color: cGray, opacity: 0.3 });
+      const now = new Date().toLocaleDateString('de-DE', { day:'2-digit', month:'2-digit', year:'numeric' });
+      p.drawText(`Erstellt: ${now} · Alle geschwärzten Bereiche sind unwiderruflich entfernt`, { x: MARGIN, y: FOOTER_H - 14, size: 7, font, color: cGray });
+      p.drawText(`Seite ${pn}`, { x: PAGE_W - MARGIN - 30, y: FOOTER_H - 14, size: 7, font, color: cGray });
+    }
+
+    drawPageChrome(page, pageNum);
+
+    // Build word-wrapped lines from tokens
+    // Each line = array of {text, redacted}
+    function buildLines() {
+      const lines = [];
+      let currentLine = [];
+      let currentWidth = 0;
+
+      function pushLine() {
+        lines.push(currentLine);
+        currentLine = [];
+        currentWidth = 0;
+      }
+
+      tokens.forEach(tok => {
+        if (tok.type === 'newline') {
+          pushLine();
+          return;
+        }
+        if (tok.type === 'whitespace') {
+          // Add space width
+          const spaceW = font.widthOfTextAtSize(' ', FONT_SIZE);
+          currentLine.push({ text: tok.text, redacted: false, width: spaceW * tok.text.length });
+          currentWidth += spaceW * tok.text.length;
+          return;
+        }
+        const w = font.widthOfTextAtSize(tok.text, FONT_SIZE);
+        if (currentWidth + w > CONTENT_W && currentLine.length > 0) {
+          pushLine();
+        }
+        currentLine.push({ text: tok.text, redacted: tok.redacted, width: w });
+        currentWidth += w;
+      });
+      if (currentLine.length > 0) pushLine();
+      return lines;
+    }
+
+    const lines = buildLines();
+    let y = PAGE_H - HEADER_H - MARGIN;
+
+    lines.forEach((line, li) => {
+      // New page if needed
+      if (y - LINE_H < FOOTER_H + 10) {
+        pageNum++;
+        page = pdfDoc.addPage([PAGE_W, PAGE_H]);
+        drawPageChrome(page, pageNum);
+        y = PAGE_H - HEADER_H - MARGIN;
+      }
+
+      // Subtle alternating line bg every 3 lines for readability
+      if (Math.floor(li / 1) % 2 === 0) {
+        page.drawRectangle({ x: MARGIN - 4, y: y - LINE_H + 3, width: CONTENT_W + 8, height: LINE_H, color: cBgLine, opacity: 0.5 });
+      }
+
+      let x = MARGIN;
+      line.forEach(chunk => {
+        if (chunk.redacted) {
+          // Solid black redaction bar — slightly taller than text
+          page.drawRectangle({
+            x: x - REDACT_PAD_X,
+            y: y - FONT_SIZE - REDACT_PAD_Y + 1,
+            width: chunk.width + REDACT_PAD_X * 2,
+            height: FONT_SIZE + REDACT_PAD_Y * 2,
+            color: cBlack
+          });
+        } else {
+          page.drawText(chunk.text, { x, y, size: FONT_SIZE, font, color: cNavy });
+        }
+        x += chunk.width;
+      });
+
+      y -= LINE_H;
+    });
+
+    // Save & download
+    const pdfBytes = await pdfDoc.save();
+    const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `redact-o-mat-${Date.now()}.pdf`;
+    a.click();
+    URL.revokeObjectURL(url);
+
+    hideExportOverlay();
+    showToast('PDF erfolgreich erstellt!', 'file-down');
+  } catch (err) {
+    console.error(err);
+    showToast('Fehler beim PDF-Export.', 'alert-circle');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i data-lucide="file-down" size="13"></i> PDF erstellen';
+    lucide.createIcons();
+  }
+}
+
+// ===========================
+// UI SWITCHES
+// ===========================
+function switchToEditorMode() {
+  isEditorMode = true;
+  document.getElementById('inputTextarea').style.display = 'none';
+  document.getElementById('editorPane').style.display = 'block';
+  document.getElementById('inputToolbar').style.display = 'none';
+  document.getElementById('editorToolbar').style.display = 'flex';
+  document.getElementById('statsBar').style.display = 'flex';
+  document.getElementById('meterBar').style.display = 'block';
+  document.getElementById('panelTitle').textContent = 'Schwärzungs-Editor';
+  lucide.createIcons();
+}
+
+function resetToInput() {
+  isEditorMode = false;
+  tokens = [];
+  history = [];
+  document.getElementById('inputTextarea').style.display = 'block';
+  document.getElementById('editorPane').style.display = 'none';
+  document.getElementById('inputToolbar').style.display = 'flex';
+  document.getElementById('editorToolbar').style.display = 'none';
+  document.getElementById('statsBar').style.display = 'none';
+  document.getElementById('meterBar').style.display = 'none';
+  document.getElementById('panelTitle').textContent = 'Texteingabe';
+  document.getElementById('historyList').innerHTML = '<p class="no-history">Noch keine Schwärzungen</p>';
+  lucide.createIcons();
+}
+
+// ===========================
+// STATS + METER
+// ===========================
+function updateStats() {
+  const wordTokens = tokens.filter(t => t.type === 'word');
+  const redacted = wordTokens.filter(t => t.redacted).length;
+  const suggested = wordTokens.filter(t => t.suggested && !t.redacted).length;
+
+  document.getElementById('statTotal').textContent = `${wordTokens.length} Token`;
+  document.getElementById('statRedacted').textContent = `${redacted} geschwärzt`;
+  document.getElementById('statSuggested').textContent = `${suggested} Vorschläge`;
+}
+
+function updateMeter() {
+  const wordTokens = tokens.filter(t => t.type === 'word');
+  const pct = wordTokens.length > 0 ? (wordTokens.filter(t => t.redacted).length / wordTokens.length * 100) : 0;
+  document.getElementById('meterFill').style.width = pct + '%';
+}
+
+// ===========================
+// HISTORY LIST
+// ===========================
+function updateHistory() {
+  const container = document.getElementById('historyList');
+  if (history.length === 0) {
+    container.innerHTML = '<p class="no-history">Noch keine Schwärzungen</p>';
+    return;
+  }
+  container.innerHTML = '';
+  [...history].reverse().slice(0, 20).forEach((entry, i) => {
+    const div = document.createElement('div');
+    div.className = 'history-entry';
+    div.innerHTML = `
+      <span class="he-text">${escapeHtml(entry.label)}</span>
+      <span class="he-badge">●</span>
+      <span class="he-undo" title="Rückgängig" onclick="undoToStep(${history.length - 1 - i})">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <polyline points="9 14 4 9 9 4"></polyline>
+          <path d="M20 20v-7a4 4 0 0 0-4-4H4"></path>
+        </svg>
+      </span>
+    `;
+    container.appendChild(div);
+  });
+}
+
+function undoToStep(targetIdx) {
+  while (history.length > targetIdx + 1) history.pop();
+  if (history[targetIdx]) {
+    tokens = history[targetIdx].snapshot.map(t => ({ ...t }));
+    history.pop();
+    renderEditor();
+  }
+}
+
+function escapeHtml(str) {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// ===========================
+// TOAST
+// ===========================
+let toastTimer;
+function showToast(msg, icon = 'check-circle') {
+  const toast = document.getElementById('toast');
+  document.getElementById('toastMsg').textContent = msg;
+  toast.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0"></svg><span id="toastMsg">${msg}</span>`;
+  toast.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toast.classList.remove('show'), 2500);
+}
+
+// ===========================
+// KEYBOARD SHORTCUTS
+// ===========================
+document.addEventListener('keydown', (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+    e.preventDefault();
+    undo();
+  }
+  if ((e.ctrlKey || e.metaKey) && e.key === 'c' && isEditorMode) {
+    // Only intercept if not selecting text in textarea
+    if (document.activeElement !== document.getElementById('inputTextarea')) {
+      e.preventDefault();
+      copyText();
+    }
+  }
+  if (e.key === 'Escape') {
+    hideExportOverlay();
+  }
+});
+
+// Re-init icons after DOM mutations
+const iconObserver = new MutationObserver(() => lucide.createIcons());
+iconObserver.observe(document.getElementById('historyList'), { childList: true });
+</script>
+</body>
+</html>
+anonymous1.html
+anonymous1.html wird angezeigt.
