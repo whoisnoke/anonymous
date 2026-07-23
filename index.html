@@ -556,6 +556,114 @@
     border-radius: 0 2px 2px 0;
   }
 
+  /* REVIEW HINTS */
+  .review-section { flex-shrink: 0; }
+
+  .review-status {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 6px;
+    margin-bottom: 12px;
+    font-size: 12px;
+    line-height: 1.5;
+    border: 1.5px solid transparent;
+  }
+  .review-status.ok {
+    background: var(--green-light);
+    border-color: #6EE7B7;
+    color: var(--green);
+  }
+  .review-status.warn {
+    background: var(--amber-light);
+    border-color: var(--amber-border);
+    color: #92400E;
+  }
+  .review-status.critical {
+    background: #FEE2E2;
+    border-color: #FECACA;
+    color: var(--red);
+  }
+  .review-status-icon { flex-shrink: 0; margin-top: 1px; }
+  .review-status-text strong { display: block; font-size: 12px; margin-bottom: 2px; }
+
+  .review-hint {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 8px 10px;
+    border-radius: 5px;
+    border: 1px solid #E2E8F0;
+    background: white;
+    margin-bottom: 6px;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .review-hint:hover { border-color: var(--navy-light); background: var(--navy-faint); }
+  .review-hint.high { border-left: 3px solid var(--red); }
+  .review-hint.medium { border-left: 3px solid var(--amber); }
+  .review-hint.low { border-left: 3px solid #94A3B8; }
+
+  .review-hint-body { flex: 1; min-width: 0; }
+  .review-hint-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--navy);
+    margin-bottom: 2px;
+  }
+  .review-hint-detail {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    color: #64748B;
+    line-height: 1.4;
+  }
+  .review-hint-count {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--navy-light);
+    background: #F1F5F9;
+    padding: 2px 6px;
+    border-radius: 10px;
+    flex-shrink: 0;
+  }
+
+  .review-checklist {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px dashed #E2E8F0;
+  }
+  .review-checklist-title {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #94A3B8;
+    margin-bottom: 8px;
+  }
+  .review-check-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font-size: 11px;
+    color: #64748B;
+    line-height: 1.45;
+    margin-bottom: 6px;
+  }
+  .review-check-item.found { color: var(--navy); }
+  .review-check-item .rci-icon { flex-shrink: 0; margin-top: 1px; }
+
+  .token.highlight-flash {
+    outline: 2px solid var(--amber);
+    outline-offset: 2px;
+    animation: flash-highlight 1.2s ease 2;
+  }
+  @keyframes flash-highlight {
+    0%, 100% { outline-color: var(--amber); background: var(--amber-light); }
+    50% { outline-color: var(--red); background: #FEE2E2; }
+  }
+
   /* SCROLLBAR */
   ::-webkit-scrollbar { width: 6px; height: 6px; }
   ::-webkit-scrollbar-track { background: transparent; }
@@ -676,6 +784,9 @@
         <button class="btn btn-amber" onclick="autoDetect('emails')">
           <i data-lucide="at-sign" size="13"></i> E-Mail-Adressen
         </button>
+        <button class="btn btn-amber" onclick="autoDetect('phones')">
+          <i data-lucide="phone" size="13"></i> Telefon
+        </button>
         <button class="btn btn-amber" onclick="autoDetect('all')">
           <i data-lucide="scan-search" size="13"></i> Alles erkennen
         </button>
@@ -699,6 +810,26 @@
       </div>
       <button class="btn btn-amber" style="width:100%; justify-content:center;" onclick="redactCustomTerms()">
         <i data-lucide="target" size="13"></i> Eigene Begriffe schwärzen
+      </button>
+    </div>
+
+    <!-- REVIEW HINTS -->
+    <div class="action-section review-section" id="reviewSection" style="display:none;">
+      <h3>Prüfhinweise</h3>
+      <div class="review-status warn" id="reviewStatus">
+        <span class="review-status-icon"><i data-lucide="scan-eye" size="16"></i></span>
+        <div class="review-status-text">
+          <strong>Prüfung ausstehend</strong>
+          <span id="reviewStatusMsg">Starten Sie die Analyse, um Hinweise zu erhalten.</span>
+        </div>
+      </div>
+      <div id="reviewHintsList"></div>
+      <div class="review-checklist" id="reviewChecklist" style="display:none;">
+        <div class="review-checklist-title">Manuell prüfen</div>
+        <div id="reviewChecklistItems"></div>
+      </div>
+      <button class="btn btn-amber" style="width:100%; justify-content:center; margin-top:10px; display:none;" id="btnAcceptSuggestions" onclick="acceptAllSuggestions()">
+        <i data-lucide="check-check" size="13"></i> Alle Vorschläge übernehmen
       </button>
     </div>
 
@@ -751,6 +882,7 @@
   <div class="export-card">
     <h3>PDF exportieren</h3>
     <p>Erzeugt ein PDF mit schwarzen Schwärzungsbalken. Der optionale Titel erscheint nur im Dokumentkopf — nicht in den PDF-Metadaten.</p>
+    <div style="margin-bottom:16px;" id="exportReviewNotice"></div>
     <div style="margin-bottom:16px;">
       <label style="font-size:12px; font-weight:600; color:var(--navy-light); display:block; margin-bottom:6px;">Dokumenttitel (optional)</label>
       <input id="pdfTitle" type="text" placeholder="z.B. Bescheid vom 24.02.2026"
@@ -786,6 +918,38 @@ let sessionDirty = false; // true when text or redactions exist
 // Shared helper: strip common surrounding punctuation before matching
 function stripPunct(s) {
   return s.replace(/^[\s"'„"([\-–—]+/, '').replace(/[\s"'"'.,;:!?)[\]]+$/, '');
+}
+
+// Erkennungsmuster für Vorschläge, Auto-Erkennung und Prüfhinweise
+const PII_PATTERNS = [
+  { id: 'dates',   label: 'Datumsangaben',    severity: 'high',   test: c => /^\d{1,2}\.\d{1,2}\.\d{2,4}$/.test(c) },
+  { id: 'emails',  label: 'E-Mail-Adressen',  severity: 'high',   test: c => /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/.test(c) },
+  { id: 'phones',  label: 'Telefonnummern',   severity: 'high',   test: c => /^(?:\+49|0049|0)[\d\s\-\/().]{8,}$/.test(c) || /^(?:\+49|0049|0)\d{6,14}$/.test(c.replace(/[\s\-\/().]/g, '')) },
+  { id: 'iban',    label: 'IBAN',             severity: 'high',   test: c => /^DE\d{2}[\s]?(?:\d{4}[\s]?){4}\d{2}$/i.test(c.replace(/\s/g, '')) || /^DE\d{20}$/i.test(c.replace(/\s/g, '')) },
+  { id: 'urls',    label: 'URLs',             severity: 'medium', test: c => /^(https?:\/\/|www\.)\S+$/i.test(c) },
+  { id: 'plz',     label: 'Postleitzahlen',   severity: 'medium', test: c => /^\d{5}$/.test(c) },
+  { id: 'steuerid',label: 'Steuer-ID',        severity: 'high',   test: c => /^\d{11}$/.test(c) },
+  { id: 'az',      label: 'Aktenzeichen',     severity: 'medium', test: c => /^\d{1,5}\s*[A-Za-zÄÖÜäöüß]{1,6}\s*\d{1,6}\/\d{2,4}$/.test(c) },
+];
+
+// Kontext-Hinweise: Schlüsselwörter im Klartext → manuelle Prüfung empfohlen
+const MANUAL_CHECKS = [
+  { id: 'names',     label: 'Personennamen',   keywords: ['herr ', 'frau ', 'hr. ', 'fr. ', 'herrn '], hint: 'Anreden und Namen in der Umgebung prüfen' },
+  { id: 'address',   label: 'Adressen',        keywords: ['straße', 'str.', ' str ', 'weg ', 'platz', 'wohnhaft', 'anschrift'], hint: 'Straßen, Hausnummern und Orte prüfen' },
+  { id: 'birth',     label: 'Geburtsangaben',  keywords: ['geboren', 'geb.', 'geburtsdatum', 'geburtsort'], hint: 'Geburtsdatum und -ort prüfen' },
+  { id: 'signature', label: 'Unterschriften',  keywords: ['unterschrift', 'gez.', 'gez '], hint: 'Unterschriften und Stempel prüfen' },
+  { id: 'id_docs',   label: 'Ausweisdaten',    keywords: ['personalausweis', 'reisepass', 'ausweisnummer'], hint: 'Ausweis- und Dokumentennummern prüfen' },
+];
+
+function classifyToken(clean) {
+  for (const p of PII_PATTERNS) {
+    if (p.test(clean)) return p;
+  }
+  return null;
+}
+
+function getUnredactedText() {
+  return tokens.filter(t => !t.redacted).map(t => t.text).join('');
 }
 
 // ===========================
@@ -838,15 +1002,10 @@ function tokenize(text) {
 }
 
 function suggestPatterns() {
-  const dateRx  = /^\d{1,2}\.\d{1,2}\.\d{2,4}$/;
-  const emailRx = /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/;
   tokens.forEach(t => {
-    if (t.type === 'word') {
-      const clean = stripPunct(t.text);
-      if (dateRx.test(clean) || emailRx.test(clean)) {
-        t.suggested = true;
-      }
-    }
+    if (t.type !== 'word' || t.redacted) return;
+    const clean = stripPunct(t.text);
+    if (classifyToken(clean)) t.suggested = true;
   });
   markCustomTermSuggestions();
 }
@@ -912,6 +1071,7 @@ function renderEditor() {
   updateStats();
   updateMeter();
   updateHistory();
+  renderReviewHints();
 }
 
 // ===========================
@@ -949,22 +1109,17 @@ function autoDetect(type) {
     return;
   }
 
-  // Robust patterns — strip leading/trailing punctuation before testing
-  const dateRx   = /^\d{1,2}\.\d{1,2}\.\d{2,4}$/;
-  const emailRx  = /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/;
-
   let count = 0;
   saveHistory(`Auto-Erkennung: ${type}`);
 
   tokens.forEach(tok => {
-    if (tok.type !== 'word') return;
+    if (tok.type !== 'word' || tok.redacted) return;
     const clean = stripPunct(tok.text);
-    let match = false;
+    const match = type === 'all'
+      ? classifyToken(clean)
+      : PII_PATTERNS.find(p => p.id === type && p.test(clean));
 
-    if ((type === 'dates'  || type === 'all') && dateRx.test(clean))  match = true;
-    if ((type === 'emails' || type === 'all') && emailRx.test(clean)) match = true;
-
-    if (match && !tok.redacted) {
+    if (match) {
       tok.redacted = true;
       tok.suggested = false;
       count++;
@@ -973,7 +1128,7 @@ function autoDetect(type) {
 
   renderEditor();
   if (count > 0) markSessionDirty();
-  const label = { dates: 'Datumsangaben', emails: 'E-Mail-Adressen', all: 'Muster' }[type];
+  const label = { dates: 'Datumsangaben', emails: 'E-Mail-Adressen', phones: 'Telefonnummern', all: 'Muster' }[type] || type;
   showToast(count > 0 ? `${count} ${label} geschwärzt.` : `Keine ${label} gefunden.`, count > 0 ? 'check-circle' : 'info');
 }
 
@@ -1106,6 +1261,248 @@ function redactCustomTerms() {
 }
 
 // ===========================
+// REVIEW HINTS
+// ===========================
+function collectReviewHints() {
+  const hints = [];
+  const byCategory = {};
+
+  // Offene Vorschläge (gelb markiert, noch nicht geschwärzt)
+  const openSuggestions = tokens.filter(t => t.type === 'word' && t.suggested && !t.redacted);
+  if (openSuggestions.length > 0) {
+    hints.push({
+      id: 'suggestions',
+      label: 'Offene Vorschläge',
+      severity: 'high',
+      count: openSuggestions.length,
+      detail: previewTokens(openSuggestions, 3),
+      tokenIds: openSuggestions.map(t => t.id),
+      action: 'acceptSuggestions',
+    });
+  }
+
+  // Ungeschwärzte PII-Muster
+  tokens.forEach(t => {
+    if (t.type !== 'word' || t.redacted) return;
+    const clean = stripPunct(t.text);
+    const pattern = classifyToken(clean);
+    if (!pattern) return;
+    if (!byCategory[pattern.id]) {
+      byCategory[pattern.id] = { pattern, tokens: [] };
+    }
+    byCategory[pattern.id].tokens.push(t);
+  });
+
+  Object.values(byCategory).forEach(({ pattern, tokens: matched }) => {
+    const list = matched.filter(t => !t.redacted && !t.suggested);
+    if (list.length === 0) return;
+    hints.push({
+      id: pattern.id,
+      label: `Ungeschwärzt: ${pattern.label}`,
+      severity: pattern.severity,
+      count: list.length,
+      detail: previewTokens(list, 3),
+      tokenIds: list.map(t => t.id),
+      action: 'scroll',
+    });
+  });
+
+  // Eigene Begriffe noch im Klartext (nur wenn nicht schon unter „Offene Vorschläge")
+  if (customTerms.length > 0) {
+    const openIds = new Set(openSuggestions.map(t => t.id));
+    const wordIndices = tokens.map((t, i) => i).filter(i => tokens[i].type === 'word');
+    const customHits = new Set();
+    customTerms.forEach(term => {
+      const termWords = term.trim().split(/\s+/).filter(Boolean);
+      forEachTermMatch(wordIndices, termWords, (idx) => {
+        if (!tokens[idx].redacted) customHits.add(tokens[idx].id);
+      });
+    });
+    const uncovered = [...customHits].filter(id => !openIds.has(id));
+    if (uncovered.length > 0) {
+      const hitTokens = uncovered.map(id => tokens.find(t => t.id === id)).filter(Boolean);
+      hints.push({
+        id: 'custom_terms',
+        label: 'Eigene Begriffe noch sichtbar',
+        severity: 'high',
+        count: uncovered.length,
+        detail: previewTokens(hitTokens, 3),
+        tokenIds: uncovered,
+        action: 'redactCustom',
+      });
+    }
+  }
+
+  // Keine Schwärzung durchgeführt
+  const redactedCount = tokens.filter(t => t.type === 'word' && t.redacted).length;
+  if (redactedCount === 0 && tokens.some(t => t.type === 'word')) {
+    hints.push({
+      id: 'no_redactions',
+      label: 'Noch nichts geschwärzt',
+      severity: 'medium',
+      count: 1,
+      detail: 'Dokument enthält Klartext — vor Export prüfen',
+      tokenIds: [],
+      action: 'none',
+    });
+  }
+
+  // Manuelle Prüfpunkte anhand Schlüsselwörter im Klartext
+  const plain = getUnredactedText().toLowerCase();
+  const manualFound = MANUAL_CHECKS.filter(ch =>
+    ch.keywords.some(kw => plain.includes(kw))
+  );
+
+  return { hints, manualFound, redactedCount };
+}
+
+function previewTokens(tokenList, max) {
+  const samples = tokenList.slice(0, max).map(t => t.text.trim()).filter(Boolean);
+  const extra = tokenList.length > max ? ` (+${tokenList.length - max})` : '';
+  return samples.join(', ') + extra;
+}
+
+function renderReviewHints() {
+  const section = document.getElementById('reviewSection');
+  const statusEl = document.getElementById('reviewStatus');
+  const statusMsg = document.getElementById('reviewStatusMsg');
+  const listEl = document.getElementById('reviewHintsList');
+  const checklistEl = document.getElementById('reviewChecklist');
+  const checklistItems = document.getElementById('reviewChecklistItems');
+  const btnAccept = document.getElementById('btnAcceptSuggestions');
+
+  if (!isEditorMode) {
+    section.style.display = 'none';
+    return;
+  }
+  section.style.display = 'block';
+
+  const { hints, manualFound, redactedCount } = collectReviewHints();
+  const highCount = hints.filter(h => h.severity === 'high').length;
+
+  // Status-Banner
+  statusEl.className = 'review-status';
+  if (hints.length === 0 && manualFound.length === 0) {
+    statusEl.classList.add('ok');
+    statusEl.innerHTML = `
+      <span class="review-status-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></span>
+      <div class="review-status-text">
+        <strong>Keine offenen Hinweise</strong>
+        <span id="reviewStatusMsg">${redactedCount} Wort/Wörter geschwärzt. Bitte trotzdem einmal den gesamten Text durchlesen.</span>
+      </div>`;
+  } else if (highCount > 0) {
+    statusEl.classList.add('critical');
+    statusEl.innerHTML = `
+      <span class="review-status-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span>
+      <div class="review-status-text">
+        <strong>${highCount} dringende${highCount === 1 ? 'r' : ''} Hinweis${highCount === 1 ? '' : 'e'}</strong>
+        <span id="reviewStatusMsg">Mögliche personenbezogene Daten sind noch im Klartext sichtbar.</span>
+      </div>`;
+  } else {
+    statusEl.classList.add('warn');
+    statusEl.innerHTML = `
+      <span class="review-status-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></span>
+      <div class="review-status-text">
+        <strong>Prüfung empfohlen</strong>
+        <span id="reviewStatusMsg">${hints.length} Hinweis${hints.length === 1 ? '' : 'e'} — bitte vor dem Export prüfen.</span>
+      </div>`;
+  }
+
+  // Hinweis-Liste
+  if (hints.length === 0) {
+    listEl.innerHTML = '<p class="no-history" style="padding:8px 0;">Keine automatischen Hinweise</p>';
+  } else {
+    listEl.innerHTML = '';
+    hints.forEach(hint => {
+      const div = document.createElement('div');
+      div.className = `review-hint ${hint.severity === 'high' ? 'high' : hint.severity === 'medium' ? 'medium' : 'low'}`;
+      div.innerHTML = `
+        <div class="review-hint-body">
+          <div class="review-hint-label">${escapeHtml(hint.label)}</div>
+          <div class="review-hint-detail">${escapeHtml(hint.detail)}</div>
+        </div>
+        <span class="review-hint-count">${hint.count}×</span>`;
+      if (hint.action !== 'none') {
+        div.addEventListener('click', () => handleReviewHint(hint));
+      }
+      listEl.appendChild(div);
+    });
+  }
+
+  // Manuelle Checkliste
+  if (manualFound.length > 0) {
+    checklistEl.style.display = 'block';
+    checklistItems.innerHTML = '';
+    manualFound.forEach(ch => {
+      const div = document.createElement('div');
+      div.className = 'review-check-item found';
+      div.innerHTML = `
+        <span class="rci-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></span>
+        <span><strong>${escapeHtml(ch.label)}:</strong> ${escapeHtml(ch.hint)}</span>`;
+      checklistItems.appendChild(div);
+    });
+  } else {
+    checklistEl.style.display = 'none';
+  }
+
+  // Button: Alle Vorschläge übernehmen
+  const hasSuggestions = hints.some(h => h.id === 'suggestions');
+  btnAccept.style.display = hasSuggestions ? 'inline-flex' : 'none';
+}
+
+function handleReviewHint(hint) {
+  if (hint.action === 'acceptSuggestions') {
+    acceptAllSuggestions();
+  } else if (hint.action === 'redactCustom') {
+    redactCustomTerms();
+  } else if (hint.tokenIds.length > 0) {
+    scrollToToken(hint.tokenIds[0]);
+  }
+}
+
+function scrollToToken(tokenId) {
+  const el = document.querySelector(`#editorPane [data-id="${tokenId}"]`);
+  if (!el) return;
+  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  el.classList.remove('highlight-flash');
+  void el.offsetWidth; // reflow for re-trigger
+  el.classList.add('highlight-flash');
+  setTimeout(() => el.classList.remove('highlight-flash'), 2500);
+}
+
+function acceptAllSuggestions() {
+  const pending = tokens.filter(t => t.type === 'word' && t.suggested && !t.redacted);
+  if (pending.length === 0) {
+    showToast('Keine offenen Vorschläge.', 'info');
+    return;
+  }
+  saveHistory('Alle Vorschläge übernommen');
+  pending.forEach(t => { t.redacted = true; t.suggested = false; });
+  markSessionDirty();
+  renderEditor();
+  showToast(`${pending.length} Vorschlag/Vorschläge übernommen.`, 'check-check');
+}
+
+function getReviewSummary() {
+  const { hints, manualFound } = collectReviewHints();
+  return { hints, manualFound, hasIssues: hints.length > 0 || manualFound.length > 0 };
+}
+
+function confirmIfReviewNeeded(actionLabel) {
+  const { hints, manualFound, hasIssues } = getReviewSummary();
+  if (!hasIssues) return true;
+
+  const lines = [];
+  hints.slice(0, 5).forEach(h => lines.push(`• ${h.label} (${h.count}×)`));
+  if (hints.length > 5) lines.push(`• … und ${hints.length - 5} weitere`);
+  if (manualFound.length > 0) lines.push(`• ${manualFound.length} manuelle Prüfpunkte`);
+
+  return confirm(
+    `Vor dem Export (${actionLabel}) sind noch offene Hinweise:\n\n${lines.join('\n')}\n\nTrotzdem exportieren?`
+  );
+}
+
+// ===========================
 // UNDO
 // ===========================
 function saveHistory(label) {
@@ -1143,6 +1540,7 @@ function getProcessedText(placeholder = '[ANONYMISIERT]') {
 }
 
 function copyText() {
+  if (!confirmIfReviewNeeded('Text kopieren')) return;
   const text = getProcessedText('[ANONYMISIERT]');
   navigator.clipboard.writeText(text).then(() => {
     showToast('Text kopiert!', 'clipboard-copy');
@@ -1150,6 +1548,7 @@ function copyText() {
 }
 
 function copyTextXXX() {
+  if (!confirmIfReviewNeeded('Kopieren mit [XXX]')) return;
   const text = getProcessedText('[XXX]');
   navigator.clipboard.writeText(text).then(() => {
     showToast('Text mit [XXX] kopiert!', 'clipboard');
@@ -1157,6 +1556,7 @@ function copyTextXXX() {
 }
 
 function downloadTxt() {
+  if (!confirmIfReviewNeeded('TXT-Download')) return;
   const text = getProcessedText('[ANONYMISIERT]');
   const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
   const url = URL.createObjectURL(blob);
@@ -1176,6 +1576,15 @@ function showExportOverlay() {
     showToast('Bitte zuerst Analyse starten.', 'alert-circle');
     return;
   }
+  renderReviewHints();
+  const notice = document.getElementById('exportReviewNotice');
+  const { hints, manualFound } = collectReviewHints();
+  if (hints.length === 0 && manualFound.length === 0) {
+    notice.innerHTML = '<div class="review-status ok" style="margin:0;"><span class="review-status-text"><strong>Keine offenen Hinweise</strong> — Export kann erfolgen. Bitte Text dennoch kurz durchlesen.</span></div>';
+  } else {
+    const items = hints.slice(0, 4).map(h => `${h.label} (${h.count}×)`).join(', ');
+    notice.innerHTML = `<div class="review-status warn" style="margin:0;"><span class="review-status-text"><strong>${hints.length + manualFound.length} offene Hinweise</strong> — ${escapeHtml(items)}${hints.length > 4 ? ' …' : ''}</span></div>`;
+  }
   document.getElementById('exportOverlay').classList.add('show');
   setTimeout(() => lucide.createIcons(), 50);
 }
@@ -1184,6 +1593,7 @@ function hideExportOverlay() {
 }
 
 async function exportPDF() {
+  if (!confirmIfReviewNeeded('PDF-Export')) return;
   const btn = document.getElementById('btnExportPDF');
   btn.disabled = true;
   btn.innerHTML = '<span style="opacity:.6">Erstelle PDF…</span>';
@@ -1350,6 +1760,7 @@ function switchToEditorMode() {
   document.getElementById('editorToolbar').style.display = 'flex';
   document.getElementById('statsBar').style.display = 'flex';
   document.getElementById('meterBar').style.display = 'block';
+  document.getElementById('reviewSection').style.display = 'block';
   document.getElementById('panelTitle').textContent = 'Schwärzungs-Editor';
   lucide.createIcons();
 }
@@ -1365,6 +1776,7 @@ function resetToInput() {
   document.getElementById('editorToolbar').style.display = 'none';
   document.getElementById('statsBar').style.display = 'none';
   document.getElementById('meterBar').style.display = 'none';
+  document.getElementById('reviewSection').style.display = 'none';
   document.getElementById('panelTitle').textContent = 'Texteingabe';
   document.getElementById('historyList').innerHTML = '<p class="no-history">Noch keine Schwärzungen</p>';
   lucide.createIcons();
@@ -1469,6 +1881,7 @@ function wipeSessionState() {
   document.getElementById('editorToolbar').style.display = 'none';
   document.getElementById('statsBar').style.display = 'none';
   document.getElementById('meterBar').style.display = 'none';
+  document.getElementById('reviewSection').style.display = 'none';
   document.getElementById('panelTitle').textContent = 'Texteingabe';
   document.getElementById('historyList').innerHTML = '<p class="no-history">Noch keine Schwärzungen</p>';
   renderCustomTermsList();
@@ -1506,10 +1919,9 @@ document.addEventListener('keydown', (e) => {
     undo();
   }
   if ((e.ctrlKey || e.metaKey) && e.key === 'c' && isEditorMode) {
-    // Only intercept if not selecting text in textarea
     if (document.activeElement !== document.getElementById('inputTextarea')) {
       e.preventDefault();
-      copyText();
+      copyText(); // includes review check
     }
   }
   if (e.key === 'Escape') {
