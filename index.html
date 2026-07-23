@@ -80,6 +80,21 @@
     font-size: 11px;
     color: rgba(255,255,255,0.45);
     letter-spacing: 0.05em;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .session-badge {
+    background: rgba(5, 150, 105, 0.25);
+    color: #6EE7B7;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    padding: 3px 8px;
+    border-radius: 2px;
+    border: 1px solid rgba(110, 231, 183, 0.35);
+    white-space: nowrap;
   }
 
   /* LAYOUT */
@@ -574,7 +589,10 @@
     <span class="brand-badge">DSGVO</span>
     <h1>Redact-o-Mat</h1>
   </div>
-  <div class="header-meta">100% CLIENT-SEITIG · KEINE DATENÜBERTRAGUNG · v1.0</div>
+  <div class="header-meta">
+    <span>100% CLIENT-SEITIG · KEINE DATENÜBERTRAGUNG · v1.1</span>
+    <span class="session-badge" title="Keine dauerhafte Speicherung — alles nur in dieser Browser-Sitzung">NUR DIESE SITZUNG</span>
+  </div>
 </header>
 
 <!-- MAIN -->
@@ -677,7 +695,7 @@
         </button>
       </div>
       <div id="customTermsList" style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px;">
-        <p class="no-history" style="width:100%; padding:6px 0;">Noch keine eigenen Begriffe</p>
+        <p class="no-history" style="width:100%; padding:6px 0;">Noch keine eigenen Begriffe (nur diese Sitzung)</p>
       </div>
       <button class="btn btn-amber" style="width:100%; justify-content:center;" onclick="redactCustomTerms()">
         <i data-lucide="target" size="13"></i> Eigene Begriffe schwärzen
@@ -711,6 +729,15 @@
       </div>
     </div>
 
+    <!-- SESSION -->
+    <div class="action-section session-section">
+      <h3>Sitzung</h3>
+      <button class="btn btn-danger" style="width:100%; justify-content:center;" onclick="secureExit()" title="Löscht Text, Schwärzungen und eigene Begriffe aus dem Speicher">
+        <i data-lucide="shield-off" size="13"></i> Sicher beenden
+      </button>
+      <p style="font-size:10px; color:#94A3B8; margin-top:8px; line-height:1.5;">Entfernt alle Daten aus dem Browser-Speicher. Nichts wird dauerhaft gespeichert.</p>
+    </div>
+
     <!-- HISTORY -->
     <div class="history-section">
       <h3>Schwärzungsprotokoll</h3>
@@ -723,7 +750,7 @@
 <div id="exportOverlay">
   <div class="export-card">
     <h3>PDF exportieren</h3>
-    <p>Erzeugt ein PDF-Dokument mit echten schwarzen Schwärzungsbalken (keine Metadaten des Originaltexts in den geschwärzten Bereichen). Kann direkt archiviert oder weitergegeben werden.</p>
+    <p>Erzeugt ein PDF mit schwarzen Schwärzungsbalken. Der optionale Titel erscheint nur im Dokumentkopf — nicht in den PDF-Metadaten.</p>
     <div style="margin-bottom:16px;">
       <label style="font-size:12px; font-weight:600; color:var(--navy-light); display:block; margin-bottom:6px;">Dokumenttitel (optional)</label>
       <input id="pdfTitle" type="text" placeholder="z.B. Bescheid vom 24.02.2026"
@@ -753,7 +780,8 @@ let tokens = []; // { id, text, type, redacted, suggested }
 let history = []; // stack of token-state snapshots for undo
 let isEditorMode = false;
 let selectionStart = null;
-let customTerms = []; // user-defined words/phrases to redact
+let customTerms = []; // user-defined words/phrases — session only, never persisted
+let sessionDirty = false; // true when text or redactions exist
 
 // Shared helper: strip common surrounding punctuation before matching
 function stripPunct(s) {
@@ -765,9 +793,14 @@ function stripPunct(s) {
 // ===========================
 document.addEventListener('DOMContentLoaded', () => {
   lucide.createIcons();
-  loadCustomTerms();
+  purgeLegacyStorage();
   renderCustomTermsList();
 });
+
+// Remove any data from older versions — strict per-session only
+function purgeLegacyStorage() {
+  try { localStorage.removeItem('redactomat_custom_terms'); } catch (e) { /* ignore */ }
+}
 
 // ===========================
 // ANALYSIS
@@ -781,6 +814,7 @@ function startAnalysis() {
   tokenize(text);
   renderEditor();
   switchToEditorMode();
+  markSessionDirty();
 }
 
 function tokenize(text) {
@@ -889,6 +923,7 @@ function toggleToken(id) {
   saveHistory(`"${tok.text.substring(0, 20)}"`);
   tok.redacted = !tok.redacted;
   tok.suggested = false;
+  markSessionDirty();
   renderEditor();
 }
 
@@ -902,7 +937,7 @@ function redactRange(from, to) {
       changed = true;
     }
   }
-  if (changed) renderEditor();
+  if (changed) { markSessionDirty(); renderEditor(); }
 }
 
 // ===========================
@@ -937,34 +972,18 @@ function autoDetect(type) {
   });
 
   renderEditor();
+  if (count > 0) markSessionDirty();
   const label = { dates: 'Datumsangaben', emails: 'E-Mail-Adressen', all: 'Muster' }[type];
   showToast(count > 0 ? `${count} ${label} geschwärzt.` : `Keine ${label} gefunden.`, count > 0 ? 'check-circle' : 'info');
 }
 
 // ===========================
-// CUSTOM TERMS (eigene zu schwärzende Begriffe)
+// CUSTOM TERMS (eigene zu schwärzende Begriffe — nur diese Sitzung)
 // ===========================
-const CUSTOM_TERMS_KEY = 'redactomat_custom_terms';
-
-function loadCustomTerms() {
-  try {
-    const raw = localStorage.getItem(CUSTOM_TERMS_KEY);
-    customTerms = raw ? JSON.parse(raw) : [];
-  } catch (e) {
-    customTerms = [];
-  }
-}
-
-function saveCustomTermsToStorage() {
-  try {
-    localStorage.setItem(CUSTOM_TERMS_KEY, JSON.stringify(customTerms));
-  } catch (e) { /* Speicher nicht verfügbar — Liste bleibt nur für diese Sitzung erhalten */ }
-}
-
 function renderCustomTermsList() {
   const container = document.getElementById('customTermsList');
   if (customTerms.length === 0) {
-    container.innerHTML = '<p class="no-history" style="width:100%; padding:6px 0;">Noch keine eigenen Begriffe</p>';
+    container.innerHTML = '<p class="no-history" style="width:100%; padding:6px 0;">Noch keine eigenen Begriffe (nur diese Sitzung)</p>';
     return;
   }
   container.innerHTML = '';
@@ -997,8 +1016,8 @@ function addCustomTerm() {
   }
 
   customTerms.push(value);
-  saveCustomTermsToStorage();
   renderCustomTermsList();
+  markSessionDirty();
   input.value = '';
   input.focus();
 
@@ -1011,7 +1030,6 @@ function addCustomTerm() {
 
 function removeCustomTerm(index) {
   const removed = customTerms.splice(index, 1);
-  saveCustomTermsToStorage();
   renderCustomTermsList();
   if (isEditorMode && removed.length) {
     // Vorschlags-Markierungen neu berechnen (bereits geschwärzte Wörter bleiben unangetastet)
@@ -1083,6 +1101,7 @@ function redactCustomTerms() {
   });
 
   renderEditor();
+  if (count > 0) markSessionDirty();
   showToast(count > 0 ? `${count} Wort(e) aus eigener Liste geschwärzt.` : 'Keine Treffer für eigene Begriffe gefunden.', count > 0 ? 'check-circle' : 'info');
 }
 
@@ -1111,6 +1130,7 @@ function undo() {
 function clearAll() {
   saveHistory('Alle aufheben');
   tokens.forEach(t => { t.redacted = false; t.suggested = false; });
+  markSessionDirty();
   renderEditor();
   showToast('Alle Schwärzungen aufgehoben.', 'eraser');
 }
@@ -1172,9 +1192,10 @@ async function exportPDF() {
     const { PDFDocument, rgb, StandardFonts } = PDFLib;
 
     const pdfDoc = await PDFDocument.create();
-    pdfDoc.setTitle(document.getElementById('pdfTitle').value || 'Redact-o-Mat Export');
-    pdfDoc.setAuthor('Redact-o-Mat (DSGVO)');
-    pdfDoc.setCreator('Redact-o-Mat v1.0');
+    // Generic metadata only — no document-specific titles in PDF properties
+    pdfDoc.setTitle('Schwaerzungsdokument');
+    pdfDoc.setAuthor('');
+    pdfDoc.setCreator('Redact-o-Mat');
 
     const font      = await pdfDoc.embedFont(StandardFonts.Courier);
     const fontBold  = await pdfDoc.embedFont(StandardFonts.CourierBold);
@@ -1337,6 +1358,7 @@ function resetToInput() {
   isEditorMode = false;
   tokens = [];
   history = [];
+  sessionDirty = !!document.getElementById('inputTextarea').value.trim();
   document.getElementById('inputTextarea').style.display = 'block';
   document.getElementById('editorPane').style.display = 'none';
   document.getElementById('inputToolbar').style.display = 'flex';
@@ -1419,6 +1441,61 @@ function showToast(msg, icon = 'check-circle') {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => toast.classList.remove('show'), 2500);
 }
+
+// ===========================
+// SESSION SECURITY
+// ===========================
+function markSessionDirty() {
+  sessionDirty = true;
+}
+
+function wipeSessionState() {
+  tokens = [];
+  history = [];
+  customTerms = [];
+  isEditorMode = false;
+  selectionStart = null;
+  sessionDirty = false;
+
+  const textarea = document.getElementById('inputTextarea');
+  textarea.value = '';
+  document.getElementById('pdfTitle').value = '';
+  document.getElementById('customTermInput').value = '';
+
+  document.getElementById('inputTextarea').style.display = 'block';
+  document.getElementById('editorPane').style.display = 'none';
+  document.getElementById('editorPane').innerHTML = '';
+  document.getElementById('inputToolbar').style.display = 'flex';
+  document.getElementById('editorToolbar').style.display = 'none';
+  document.getElementById('statsBar').style.display = 'none';
+  document.getElementById('meterBar').style.display = 'none';
+  document.getElementById('panelTitle').textContent = 'Texteingabe';
+  document.getElementById('historyList').innerHTML = '<p class="no-history">Noch keine Schwärzungen</p>';
+  renderCustomTermsList();
+  hideExportOverlay();
+  lucide.createIcons();
+}
+
+function secureExit() {
+  if (sessionDirty && !confirm('Alle Texte und Schwärzungen unwiderruflich löschen?')) return;
+  wipeSessionState();
+  showToast('Sitzung beendet — alle Daten entfernt.', 'shield-off');
+}
+
+window.addEventListener('beforeunload', (e) => {
+  if (sessionDirty) {
+    e.preventDefault();
+    e.returnValue = '';
+  }
+});
+
+document.getElementById('inputTextarea').addEventListener('input', () => {
+  if (!isEditorMode && document.getElementById('inputTextarea').value.trim()) {
+    markSessionDirty();
+  } else if (!isEditorMode && !document.getElementById('inputTextarea').value.trim()) {
+    sessionDirty = false;
+  }
+});
 
 // ===========================
 // KEYBOARD SHORTCUTS
