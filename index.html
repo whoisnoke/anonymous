@@ -827,7 +827,29 @@ let history = []; // stack of token-state snapshots for undo
 let isEditorMode = false;
 let selectionStart = null;
 let customTerms = []; // user-defined words/phrases to redact
-let candidates = []; // auto-detected candidates (dates/emails), grouped by unique text
+let candidates = []; // auto-detected candidates (dates/emails/names), grouped by unique text
+let dictionaryTerms = []; // flat list of names/terms loaded from dictionary.json
+let dictionaryLoadPromise = null;
+
+// Lädt dictionary.json — erwartetes Format: flaches Array von Strings,
+// z.B. ["Max Mustermann", "Erika Musterfrau", "Musterstraße"].
+// fetch() von lokalen Dateien wird von manchen Browsern bei file:// blockiert (CORS) —
+// in diesem Fall bleibt dictionaryTerms leer und es erscheint einmalig ein Hinweis-Toast.
+async function loadDictionary() {
+  try {
+    const res = await fetch('dictionary.json');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    if (Array.isArray(data)) {
+      dictionaryTerms = data.filter(x => typeof x === 'string' && x.trim().length > 0);
+    } else {
+      console.warn('dictionary.json hat nicht das erwartete Format (flaches Array von Strings).');
+    }
+  } catch (e) {
+    console.warn('dictionary.json konnte nicht geladen werden:', e);
+    showToast('dictionary.json konnte nicht geladen werden. Falls du die Seite per Doppelklick öffnest, starte stattdessen einen lokalen Server (z.B. "python3 -m http.server" im Ordner) und öffne die Seite über http://localhost.', 'alert-circle');
+  }
+}
 
 // Shared helper: strip ANY surrounding non-letter/non-digit characters before matching
 // (handles <>, «», „", (), [], etc. — not just a hardcoded punctuation list)
@@ -842,17 +864,19 @@ document.addEventListener('DOMContentLoaded', () => {
   lucide.createIcons();
   loadCustomTerms();
   renderCustomTermsList();
+  dictionaryLoadPromise = loadDictionary();
 });
 
 // ===========================
 // ANALYSIS
 // ===========================
-function startAnalysis() {
+async function startAnalysis() {
   const text = document.getElementById('inputTextarea').value.trim();
   if (!text) {
     showToast('Bitte zuerst Text eingeben.', 'alert-circle');
     return;
   }
+  if (dictionaryLoadPromise) await dictionaryLoadPromise;
   tokenize(text);
   renderEditor();
   switchToEditorMode();
@@ -877,6 +901,7 @@ function tokenize(text) {
   // Auto-suggest patterns
   suggestPatterns();
   detectCandidates();
+  markCandidatesAsSuggested();
 }
 
 function suggestPatterns() {
@@ -987,7 +1012,8 @@ function redactRange(from, to) {
 // ===========================
 const CANDIDATE_TYPE_META = {
   email: { label: 'E-Mail', icon: 'at-sign' },
-  date:  { label: 'Datum',  icon: 'calendar' }
+  date:  { label: 'Datum',  icon: 'calendar' },
+  name:  { label: 'Name',   icon: 'user' }
 };
 
 function detectCandidates() {
@@ -1006,13 +1032,154 @@ function detectCandidates() {
     if (!type) return;
 
     const key = type + '|' + clean.toLowerCase();
-    if (!map.has(key)) map.set(key, { key, type, text: clean, tokenIds: [] });
+    if (!map.has(key)) map.set(key, { key, type, text: clean, tokenIds: [], occurrences: 0 });
     map.get(key).tokenIds.push(tok.id);
+    map.get(key).occurrences++;
   });
+
+  detectNameCandidates(map);
+  detectDictionaryCandidates(map);
 
   candidates = Array.from(map.values()).sort((a, b) => {
     if (a.type !== b.type) return a.type.localeCompare(b.type);
     return a.text.localeCompare(b.text, 'de');
+  });
+}
+
+// ---------------------------
+// Wörterbuch (dictionary.json) — flaches Array von Strings
+// ---------------------------
+function detectDictionaryCandidates(map) {
+  if (!dictionaryTerms || dictionaryTerms.length === 0) return;
+
+  const wordIndices = tokens.map((t, i) => i).filter(i => tokens[i].type === 'word');
+
+  dictionaryTerms.forEach(entry => {
+    const termWords = String(entry).trim().split(/\s+/).filter(Boolean);
+    if (termWords.length === 0) return;
+
+    const key = 'name|' + entry.toLowerCase();
+    forEachTermMatch(wordIndices, termWords, (idxArray) => {
+      if (!map.has(key)) map.set(key, { key, type: 'name', text: entry, tokenIds: [], occurrences: 0 });
+      map.get(key).tokenIds.push(...idxArray);
+      map.get(key).occurrences++;
+    });
+  });
+}
+
+// ---------------------------
+// Namens-Heuristik (Titel- und Grußformel-basiert)
+// ---------------------------
+const NAME_TITLES = ['herr', 'herrn', 'frau', 'fräulein', 'dr', 'prof', 'mag', 'ing'];
+const NAME_GREETING_PHRASES = [
+  ['mit', 'freundlichen', 'grüßen'],
+  ['mit', 'besten', 'grüßen'],
+  ['freundliche', 'grüße'],
+  ['viele', 'grüße'],
+  ['beste', 'grüße'],
+  ['herzliche', 'grüße']
+];
+// Häufige Wörter, die nach einer Grußformel stehen können, aber keine Namen sind
+const NAME_STOPWORDS = new Set([
+  'der', 'die', 'das', 'wir', 'ich', 'sie', 'bitte', 'vielen', 'für', 'diese',
+  'dieser', 'dieses', 'anbei', 'hiermit', 'bei', 'mit', 'ihre', 'ihr', 'unser',
+  'unsere', 'sehr', 'beste', 'viele', 'herzliche', 'freundliche', 'freundlichen',
+  'grüßen', 'grüße', 'dank', 'danke', 'p', 's', 'ps'
+]);
+// Nachnamen-Partikel, die innerhalb eines Namens vorkommen können ("von", "van der" …)
+const NAME_PARTICLES = new Set(['von', 'van', 'de', 'zu', 'der', 'den']);
+
+// Sammelt eine Folge großgeschriebener Wort-Token ab wordIndices[startWi]
+function collectCapitalizedRun(wordIndices, startWi, maxWords) {
+  const ids = [];
+  const words = [];
+  let wi = startWi;
+  while (wi < wordIndices.length && words.length < maxWords) {
+    const idx = wordIndices[wi];
+    const clean = stripPunct(tokens[idx].text);
+    if (!clean) break;
+    const isCapitalized = /^\p{Lu}/u.test(clean);
+
+    if (!isCapitalized) {
+      const lower = clean.toLowerCase();
+      const nextIdx = wordIndices[wi + 1];
+      const nextClean = nextIdx !== undefined ? stripPunct(tokens[nextIdx].text) : '';
+      // Namenspartikel wie "von"/"van" nur mitnehmen, wenn davor UND danach ein Name steht
+      if (NAME_PARTICLES.has(lower) && words.length > 0 && /^\p{Lu}/u.test(nextClean)) {
+        ids.push(idx);
+        words.push(clean);
+        wi++;
+        continue;
+      }
+      break;
+    }
+    ids.push(idx);
+    words.push(clean);
+    wi++;
+  }
+  if (words.length === 0) return null;
+  return { tokenIds: ids, text: words.join(' '), nextWi: wi };
+}
+
+function detectNameCandidates(map) {
+  const wordIndices = tokens.map((t, i) => i).filter(i => tokens[i].type === 'word');
+
+  function addName(tokenIds, text) {
+    if (!text || text.replace(/[^\p{L}]/gu, '').length < 2) return;
+    const key = 'name|' + text.toLowerCase();
+    if (!map.has(key)) map.set(key, { key, type: 'name', text, tokenIds: [], occurrences: 0 });
+    map.get(key).tokenIds.push(...tokenIds);
+    map.get(key).occurrences++;
+  }
+
+  // 1) Titel-basiert: "Herr/Frau/Dr./Prof. [Dr.] Vorname Nachname" — sehr zuverlässig
+  for (let wi = 0; wi < wordIndices.length; wi++) {
+    const clean = stripPunct(tokens[wordIndices[wi]].text).toLowerCase().replace(/\.$/, '');
+    if (!NAME_TITLES.includes(clean)) continue;
+
+    // Mehrere aneinandergereihte Titel überspringen (z.B. "Frau Prof. Dr.")
+    let wi2 = wi + 1;
+    while (wi2 < wordIndices.length) {
+      const c2 = stripPunct(tokens[wordIndices[wi2]].text).toLowerCase().replace(/\.$/, '');
+      if (NAME_TITLES.includes(c2)) wi2++; else break;
+    }
+
+    const run = collectCapitalizedRun(wordIndices, wi2, 3);
+    if (run) {
+      addName(run.tokenIds, run.text);
+      wi = run.nextWi - 1;
+    }
+  }
+
+  // 2) Grußformel-basiert: Name in der Unterschrift nach "Mit freundlichen Grüßen" o.ä.
+  for (let wi = 0; wi < wordIndices.length; wi++) {
+    for (const phrase of NAME_GREETING_PHRASES) {
+      let matches = true;
+      for (let p = 0; p < phrase.length; p++) {
+        const wIdx = wi + p;
+        if (wIdx >= wordIndices.length) { matches = false; break; }
+        const c = stripPunct(tokens[wordIndices[wIdx]].text).toLowerCase();
+        if (c !== phrase[p]) { matches = false; break; }
+      }
+      if (!matches) continue;
+
+      const run = collectCapitalizedRun(wordIndices, wi + phrase.length, 3);
+      if (run) {
+        const firstWord = run.text.split(' ')[0].toLowerCase();
+        if (!NAME_STOPWORDS.has(firstWord)) addName(run.tokenIds, run.text);
+      }
+      break;
+    }
+  }
+}
+
+// Markiert alle erkannten Kandidaten (Datum/E-Mail/Name) im Editor gelb, ohne sie zu schwärzen
+function markCandidatesAsSuggested() {
+  candidates.forEach(cand => {
+    cand.tokenIds.forEach(id => {
+      const t = tokens.find(tok => tok.id === id);
+      if (t && !t.redacted) t.suggested = true;
+    });
   });
 }
 
@@ -1054,7 +1221,7 @@ function renderCandidatesList() {
       </span>
       <i data-lucide="${meta.icon}" size="12" style="flex-shrink:0; color:#94A3B8;"></i>
       <span class="candidate-text" title="${escapeHtml(cand.text)}">${escapeHtml(cand.text)}</span>
-      ${cand.tokenIds.length > 1 ? `<span class="candidate-count">${cand.tokenIds.length}×</span>` : ''}
+      ${cand.occurrences > 1 ? `<span class="candidate-count">${cand.occurrences}×</span>` : ''}
     `;
     container.appendChild(row);
   });
@@ -1172,6 +1339,7 @@ function removeCustomTerm(index) {
     // Vorschlags-Markierungen neu berechnen (bereits geschwärzte Wörter bleiben unangetastet)
     tokens.forEach(t => { if (t.type === 'word') t.suggested = false; });
     suggestPatterns();
+    markCandidatesAsSuggested();
     renderEditor();
   }
 }
@@ -1185,14 +1353,15 @@ function markCustomTermSuggestions() {
   customTerms.forEach(term => {
     const termWords = term.trim().split(/\s+/).filter(Boolean);
     if (termWords.length === 0) return;
-    forEachTermMatch(wordIndices, termWords, (idx) => {
-      if (!tokens[idx].redacted) tokens[idx].suggested = true;
+    forEachTermMatch(wordIndices, termWords, (idxArray) => {
+      idxArray.forEach(idx => { if (!tokens[idx].redacted) tokens[idx].suggested = true; });
     });
   });
 }
 
 // Findet Vorkommen einer (ggf. mehrwortigen) Begriffsfolge in der Tokenliste
-// und ruft für jeden passenden Wort-Token onMatch(idx) auf.
+// und ruft für jedes gefundene Vorkommen onMatch(idxArray) EINMAL auf
+// (idxArray enthält alle Wort-Token-Indizes dieses einen Vorkommens).
 function forEachTermMatch(wordIndices, termWords, onMatch) {
   const targets = termWords.map(w => w.toLowerCase());
   for (let i = 0; i < wordIndices.length; i++) {
@@ -1207,7 +1376,7 @@ function forEachTermMatch(wordIndices, termWords, onMatch) {
       matchedIdx.push(idx);
       wi++;
     }
-    if (ok) matchedIdx.forEach(idx => onMatch(idx));
+    if (ok) onMatch(matchedIdx);
   }
 }
 
@@ -1228,12 +1397,14 @@ function redactCustomTerms() {
   customTerms.forEach(term => {
     const termWords = term.trim().split(/\s+/).filter(Boolean);
     if (termWords.length === 0) return;
-    forEachTermMatch(wordIndices, termWords, (idx) => {
-      if (!tokens[idx].redacted) {
-        tokens[idx].redacted = true;
-        tokens[idx].suggested = false;
-        count++;
-      }
+    forEachTermMatch(wordIndices, termWords, (idxArray) => {
+      idxArray.forEach(idx => {
+        if (!tokens[idx].redacted) {
+          tokens[idx].redacted = true;
+          tokens[idx].suggested = false;
+          count++;
+        }
+      });
     });
   });
 
