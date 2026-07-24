@@ -80,21 +80,6 @@
     font-size: 11px;
     color: rgba(255,255,255,0.45);
     letter-spacing: 0.05em;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-
-  .session-badge {
-    background: rgba(5, 150, 105, 0.25);
-    color: #6EE7B7;
-    font-size: 9px;
-    font-weight: 700;
-    letter-spacing: 0.1em;
-    padding: 3px 8px;
-    border-radius: 2px;
-    border: 1px solid rgba(110, 231, 183, 0.35);
-    white-space: nowrap;
   }
 
   /* LAYOUT */
@@ -542,6 +527,76 @@
     color: white;
   }
 
+  /* CANDIDATE CHECKLIST */
+  .candidate-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    border-radius: 4px;
+    border: 1px solid #E2E8F0;
+    background: white;
+  }
+  .candidate-row:hover { border-color: #CBD5E1; }
+  .candidate-check {
+    cursor: pointer;
+    flex-shrink: 0;
+    display: flex;
+  }
+  .cc-box {
+    width: 15px;
+    height: 15px;
+    border-radius: 3px;
+    border: 1.5px solid #CBD5E1;
+    background: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    transition: all 0.1s ease;
+  }
+  .candidate-check.checked .cc-box {
+    background: var(--black-mark);
+    border-color: var(--black-mark);
+  }
+  .candidate-check.checked .cc-box::after {
+    content: '';
+    position: absolute;
+    width: 4px;
+    height: 8px;
+    border: solid white;
+    border-width: 0 1.5px 1.5px 0;
+    transform: rotate(45deg) translate(-1px, -1px);
+  }
+  .candidate-check.partial .cc-box {
+    background: var(--amber-light);
+    border-color: var(--amber);
+  }
+  .candidate-check.partial .cc-box::after {
+    content: '';
+    width: 7px;
+    height: 1.5px;
+    background: var(--amber);
+  }
+  .candidate-text {
+    flex: 1;
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    color: var(--navy);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .candidate-count {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    color: #94A3B8;
+    background: #F1F5F9;
+    padding: 1px 6px;
+    border-radius: 10px;
+    flex-shrink: 0;
+  }
+
   /* PROGRESS BAR */
   .redaction-meter {
     height: 3px;
@@ -554,114 +609,6 @@
     background: linear-gradient(90deg, var(--amber), var(--red));
     transition: width 0.3s ease;
     border-radius: 0 2px 2px 0;
-  }
-
-  /* REVIEW HINTS */
-  .review-section { flex-shrink: 0; }
-
-  .review-status {
-    display: flex;
-    align-items: flex-start;
-    gap: 10px;
-    padding: 10px 12px;
-    border-radius: 6px;
-    margin-bottom: 12px;
-    font-size: 12px;
-    line-height: 1.5;
-    border: 1.5px solid transparent;
-  }
-  .review-status.ok {
-    background: var(--green-light);
-    border-color: #6EE7B7;
-    color: var(--green);
-  }
-  .review-status.warn {
-    background: var(--amber-light);
-    border-color: var(--amber-border);
-    color: #92400E;
-  }
-  .review-status.critical {
-    background: #FEE2E2;
-    border-color: #FECACA;
-    color: var(--red);
-  }
-  .review-status-icon { flex-shrink: 0; margin-top: 1px; }
-  .review-status-text strong { display: block; font-size: 12px; margin-bottom: 2px; }
-
-  .review-hint {
-    display: flex;
-    align-items: flex-start;
-    gap: 8px;
-    padding: 8px 10px;
-    border-radius: 5px;
-    border: 1px solid #E2E8F0;
-    background: white;
-    margin-bottom: 6px;
-    cursor: pointer;
-    transition: border-color 0.15s, background 0.15s;
-  }
-  .review-hint:hover { border-color: var(--navy-light); background: var(--navy-faint); }
-  .review-hint.high { border-left: 3px solid var(--red); }
-  .review-hint.medium { border-left: 3px solid var(--amber); }
-  .review-hint.low { border-left: 3px solid #94A3B8; }
-
-  .review-hint-body { flex: 1; min-width: 0; }
-  .review-hint-label {
-    font-size: 11px;
-    font-weight: 700;
-    color: var(--navy);
-    margin-bottom: 2px;
-  }
-  .review-hint-detail {
-    font-family: 'DM Mono', monospace;
-    font-size: 10px;
-    color: #64748B;
-    line-height: 1.4;
-  }
-  .review-hint-count {
-    font-family: 'DM Mono', monospace;
-    font-size: 10px;
-    font-weight: 700;
-    color: var(--navy-light);
-    background: #F1F5F9;
-    padding: 2px 6px;
-    border-radius: 10px;
-    flex-shrink: 0;
-  }
-
-  .review-checklist {
-    margin-top: 10px;
-    padding-top: 10px;
-    border-top: 1px dashed #E2E8F0;
-  }
-  .review-checklist-title {
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: #94A3B8;
-    margin-bottom: 8px;
-  }
-  .review-check-item {
-    display: flex;
-    align-items: flex-start;
-    gap: 8px;
-    font-size: 11px;
-    color: #64748B;
-    line-height: 1.45;
-    margin-bottom: 6px;
-  }
-  .review-check-item.found { color: var(--navy); }
-  .review-check-item .rci-icon { flex-shrink: 0; margin-top: 1px; }
-
-  .token.highlight-flash {
-    outline: 2px solid var(--amber);
-    outline-offset: 2px;
-    animation: flash-highlight 1.2s ease 2;
-  }
-  @keyframes flash-highlight {
-    0%, 100% { outline-color: var(--amber); background: var(--amber-light); }
-    50% { outline-color: var(--red); background: #FEE2E2; }
   }
 
   /* SCROLLBAR */
@@ -697,10 +644,7 @@
     <span class="brand-badge">DSGVO</span>
     <h1>Redact-o-Mat</h1>
   </div>
-  <div class="header-meta">
-    <span>100% CLIENT-SEITIG · KEINE DATENÜBERTRAGUNG · v1.1</span>
-    <span class="session-badge" title="Keine dauerhafte Speicherung — alles nur in dieser Browser-Sitzung">NUR DIESE SITZUNG</span>
-  </div>
+  <div class="header-meta">100% CLIENT-SEITIG · KEINE DATENÜBERTRAGUNG · v1.0</div>
 </header>
 
 <!-- MAIN -->
@@ -776,20 +720,20 @@
 
     <!-- AUTO DETECT -->
     <div class="action-section auto-detect-section">
-      <h3>Auto-Erkennung</h3>
-      <div style="display:flex; gap:8px; flex-wrap:wrap;">
-        <button class="btn btn-amber" onclick="autoDetect('dates')">
-          <i data-lucide="calendar" size="13"></i> Datumsangaben
+      <h3>Erkannte Kandidaten</h3>
+      <p style="font-size:11px; color:#94A3B8; margin-bottom:10px; line-height:1.5;">
+        Automatisch gefundene Datums- und E-Mail-Muster. Ein Klick schwärzt/entschwärzt <strong>alle</strong> Vorkommen im Dokument.
+      </p>
+      <div style="display:flex; gap:8px; margin-bottom:10px;">
+        <button class="btn btn-ghost" style="flex:1; justify-content:center;" onclick="toggleAllCandidates(true)">
+          <i data-lucide="check-square" size="13"></i> Alle schwärzen
         </button>
-        <button class="btn btn-amber" onclick="autoDetect('emails')">
-          <i data-lucide="at-sign" size="13"></i> E-Mail-Adressen
+        <button class="btn btn-ghost" style="flex:1; justify-content:center;" onclick="toggleAllCandidates(false)">
+          <i data-lucide="square" size="13"></i> Alle aufheben
         </button>
-        <button class="btn btn-amber" onclick="autoDetect('phones')">
-          <i data-lucide="phone" size="13"></i> Telefon
-        </button>
-        <button class="btn btn-amber" onclick="autoDetect('all')">
-          <i data-lucide="scan-search" size="13"></i> Alles erkennen
-        </button>
+      </div>
+      <div id="candidatesList" style="display:flex; flex-direction:column; gap:5px; max-height:240px; overflow-y:auto;">
+        <p class="no-history" style="width:100%; padding:6px 0;">Noch keine Analyse durchgeführt</p>
       </div>
     </div>
 
@@ -806,30 +750,10 @@
         </button>
       </div>
       <div id="customTermsList" style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px;">
-        <p class="no-history" style="width:100%; padding:6px 0;">Noch keine eigenen Begriffe (nur diese Sitzung)</p>
+        <p class="no-history" style="width:100%; padding:6px 0;">Noch keine eigenen Begriffe</p>
       </div>
       <button class="btn btn-amber" style="width:100%; justify-content:center;" onclick="redactCustomTerms()">
         <i data-lucide="target" size="13"></i> Eigene Begriffe schwärzen
-      </button>
-    </div>
-
-    <!-- REVIEW HINTS -->
-    <div class="action-section review-section" id="reviewSection" style="display:none;">
-      <h3>Prüfhinweise</h3>
-      <div class="review-status warn" id="reviewStatus">
-        <span class="review-status-icon"><i data-lucide="scan-eye" size="16"></i></span>
-        <div class="review-status-text">
-          <strong>Prüfung ausstehend</strong>
-          <span id="reviewStatusMsg">Starten Sie die Analyse, um Hinweise zu erhalten.</span>
-        </div>
-      </div>
-      <div id="reviewHintsList"></div>
-      <div class="review-checklist" id="reviewChecklist" style="display:none;">
-        <div class="review-checklist-title">Manuell prüfen</div>
-        <div id="reviewChecklistItems"></div>
-      </div>
-      <button class="btn btn-amber" style="width:100%; justify-content:center; margin-top:10px; display:none;" id="btnAcceptSuggestions" onclick="acceptAllSuggestions()">
-        <i data-lucide="check-check" size="13"></i> Alle Vorschläge übernehmen
       </button>
     </div>
 
@@ -860,15 +784,6 @@
       </div>
     </div>
 
-    <!-- SESSION -->
-    <div class="action-section session-section">
-      <h3>Sitzung</h3>
-      <button class="btn btn-danger" style="width:100%; justify-content:center;" onclick="secureExit()" title="Löscht Text, Schwärzungen und eigene Begriffe aus dem Speicher">
-        <i data-lucide="shield-off" size="13"></i> Sicher beenden
-      </button>
-      <p style="font-size:10px; color:#94A3B8; margin-top:8px; line-height:1.5;">Entfernt alle Daten aus dem Browser-Speicher. Nichts wird dauerhaft gespeichert.</p>
-    </div>
-
     <!-- HISTORY -->
     <div class="history-section">
       <h3>Schwärzungsprotokoll</h3>
@@ -881,8 +796,7 @@
 <div id="exportOverlay">
   <div class="export-card">
     <h3>PDF exportieren</h3>
-    <p>Erzeugt ein PDF mit schwarzen Schwärzungsbalken. Der optionale Titel erscheint nur im Dokumentkopf — nicht in den PDF-Metadaten.</p>
-    <div style="margin-bottom:16px;" id="exportReviewNotice"></div>
+    <p>Erzeugt ein PDF-Dokument mit echten schwarzen Schwärzungsbalken (keine Metadaten des Originaltexts in den geschwärzten Bereichen). Kann direkt archiviert oder weitergegeben werden.</p>
     <div style="margin-bottom:16px;">
       <label style="font-size:12px; font-weight:600; color:var(--navy-light); display:block; margin-bottom:6px;">Dokumenttitel (optional)</label>
       <input id="pdfTitle" type="text" placeholder="z.B. Bescheid vom 24.02.2026"
@@ -912,44 +826,13 @@ let tokens = []; // { id, text, type, redacted, suggested }
 let history = []; // stack of token-state snapshots for undo
 let isEditorMode = false;
 let selectionStart = null;
-let customTerms = []; // user-defined words/phrases — session only, never persisted
-let sessionDirty = false; // true when text or redactions exist
+let customTerms = []; // user-defined words/phrases to redact
+let candidates = []; // auto-detected candidates (dates/emails), grouped by unique text
 
-// Shared helper: strip common surrounding punctuation before matching
+// Shared helper: strip ANY surrounding non-letter/non-digit characters before matching
+// (handles <>, «», „", (), [], etc. — not just a hardcoded punctuation list)
 function stripPunct(s) {
-  return s.replace(/^[\s"'„"([\-–—]+/, '').replace(/[\s"'"'.,;:!?)[\]]+$/, '');
-}
-
-// Erkennungsmuster für Vorschläge, Auto-Erkennung und Prüfhinweise
-const PII_PATTERNS = [
-  { id: 'dates',   label: 'Datumsangaben',    severity: 'high',   test: c => /^\d{1,2}\.\d{1,2}\.\d{2,4}$/.test(c) },
-  { id: 'emails',  label: 'E-Mail-Adressen',  severity: 'high',   test: c => /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/.test(c) },
-  { id: 'phones',  label: 'Telefonnummern',   severity: 'high',   test: c => /^(?:\+49|0049|0)[\d\s\-\/().]{8,}$/.test(c) || /^(?:\+49|0049|0)\d{6,14}$/.test(c.replace(/[\s\-\/().]/g, '')) },
-  { id: 'iban',    label: 'IBAN',             severity: 'high',   test: c => /^DE\d{2}[\s]?(?:\d{4}[\s]?){4}\d{2}$/i.test(c.replace(/\s/g, '')) || /^DE\d{20}$/i.test(c.replace(/\s/g, '')) },
-  { id: 'urls',    label: 'URLs',             severity: 'medium', test: c => /^(https?:\/\/|www\.)\S+$/i.test(c) },
-  { id: 'plz',     label: 'Postleitzahlen',   severity: 'medium', test: c => /^\d{5}$/.test(c) },
-  { id: 'steuerid',label: 'Steuer-ID',        severity: 'high',   test: c => /^\d{11}$/.test(c) },
-  { id: 'az',      label: 'Aktenzeichen',     severity: 'medium', test: c => /^\d{1,5}\s*[A-Za-zÄÖÜäöüß]{1,6}\s*\d{1,6}\/\d{2,4}$/.test(c) },
-];
-
-// Kontext-Hinweise: Schlüsselwörter im Klartext → manuelle Prüfung empfohlen
-const MANUAL_CHECKS = [
-  { id: 'names',     label: 'Personennamen',   keywords: ['herr ', 'frau ', 'hr. ', 'fr. ', 'herrn '], hint: 'Anreden und Namen in der Umgebung prüfen' },
-  { id: 'address',   label: 'Adressen',        keywords: ['straße', 'str.', ' str ', 'weg ', 'platz', 'wohnhaft', 'anschrift'], hint: 'Straßen, Hausnummern und Orte prüfen' },
-  { id: 'birth',     label: 'Geburtsangaben',  keywords: ['geboren', 'geb.', 'geburtsdatum', 'geburtsort'], hint: 'Geburtsdatum und -ort prüfen' },
-  { id: 'signature', label: 'Unterschriften',  keywords: ['unterschrift', 'gez.', 'gez '], hint: 'Unterschriften und Stempel prüfen' },
-  { id: 'id_docs',   label: 'Ausweisdaten',    keywords: ['personalausweis', 'reisepass', 'ausweisnummer'], hint: 'Ausweis- und Dokumentennummern prüfen' },
-];
-
-function classifyToken(clean) {
-  for (const p of PII_PATTERNS) {
-    if (p.test(clean)) return p;
-  }
-  return null;
-}
-
-function getUnredactedText() {
-  return tokens.filter(t => !t.redacted).map(t => t.text).join('');
+  return s.replace(/^[^\p{L}\p{N}]+/u, '').replace(/[^\p{L}\p{N}]+$/u, '');
 }
 
 // ===========================
@@ -957,14 +840,9 @@ function getUnredactedText() {
 // ===========================
 document.addEventListener('DOMContentLoaded', () => {
   lucide.createIcons();
-  purgeLegacyStorage();
+  loadCustomTerms();
   renderCustomTermsList();
 });
-
-// Remove any data from older versions — strict per-session only
-function purgeLegacyStorage() {
-  try { localStorage.removeItem('redactomat_custom_terms'); } catch (e) { /* ignore */ }
-}
 
 // ===========================
 // ANALYSIS
@@ -978,7 +856,6 @@ function startAnalysis() {
   tokenize(text);
   renderEditor();
   switchToEditorMode();
-  markSessionDirty();
 }
 
 function tokenize(text) {
@@ -999,13 +876,19 @@ function tokenize(text) {
 
   // Auto-suggest patterns
   suggestPatterns();
+  detectCandidates();
 }
 
 function suggestPatterns() {
+  const dateRx  = /^\d{1,2}\.\d{1,2}\.\d{2,4}$/;
+  const emailRx = /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/;
   tokens.forEach(t => {
-    if (t.type !== 'word' || t.redacted) return;
-    const clean = stripPunct(t.text);
-    if (classifyToken(clean)) t.suggested = true;
+    if (t.type === 'word') {
+      const clean = stripPunct(t.text);
+      if (dateRx.test(clean) || emailRx.test(clean)) {
+        t.suggested = true;
+      }
+    }
   });
   markCustomTermSuggestions();
 }
@@ -1071,7 +954,7 @@ function renderEditor() {
   updateStats();
   updateMeter();
   updateHistory();
-  renderReviewHints();
+  renderCandidatesList();
 }
 
 // ===========================
@@ -1081,131 +964,162 @@ function toggleToken(id) {
   const tok = tokens.find(t => t.id === id);
   if (!tok || tok.type !== 'word') return;
   saveHistory(`"${tok.text.substring(0, 20)}"`);
-  const willRedact = !tok.redacted;
-  tok.redacted = willRedact;
+  tok.redacted = !tok.redacted;
   tok.suggested = false;
-
-  if (willRedact) {
-    const added = addCustomTermFromManual(tok.text);
-    if (added) return;
-  }
-
-  markSessionDirty();
   renderEditor();
 }
 
 function redactRange(from, to) {
   saveHistory('Phrasenauswahl');
   let changed = false;
-  const phraseParts = [];
-
   for (let i = from; i <= to; i++) {
     if (tokens[i] && tokens[i].type === 'word') {
       tokens[i].redacted = true;
       tokens[i].suggested = false;
       changed = true;
-      phraseParts.push(tokens[i].text);
     }
   }
-
-  if (changed) {
-    const phrase = phraseParts.join(' ').trim();
-    if (phrase) {
-      addCustomTermFromManual(phrase);
-      return;
-    }
-    markSessionDirty();
-    renderEditor();
-  }
+  if (changed) renderEditor();
 }
 
-function normalizeCustomTerm(term) {
-  return term
-    .trim()
-    .replace(/\s+/g, ' ')
-    .toLowerCase();
-}
+// ===========================
+// AUTO DETECT (Kandidatenliste)
+// ===========================
+const CANDIDATE_TYPE_META = {
+  email: { label: 'E-Mail', icon: 'at-sign' },
+  date:  { label: 'Datum',  icon: 'calendar' }
+};
 
-function addCustomTermValue(value) {
-  const normalized = normalizeCustomTerm(value);
-  if (!normalized) return false;
-  const exists = customTerms.some(t => normalizeCustomTerm(t) === normalized);
-  if (exists) return false;
-  customTerms.push(value.trim());
-  renderCustomTermsList();
-  return true;
-}
+function detectCandidates() {
+  const dateRx  = /^\d{1,2}\.\d{1,2}\.\d{2,4}$/;
+  const emailRx = /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/;
+  const map = new Map();
 
-function applyCustomTermsToAllTokens() {
-  let changed = false;
-  const wordIndices = tokens.map((t, i) => i).filter(i => tokens[i].type === 'word');
+  tokens.forEach(tok => {
+    if (tok.type !== 'word') return;
+    const clean = stripPunct(tok.text);
+    if (!clean) return;
 
-  customTerms.forEach(term => {
-    const termWords = term.trim().split(/\s+/).filter(Boolean);
-    if (termWords.length === 0) return;
-    forEachTermMatch(wordIndices, termWords, (idx) => {
-      if (!tokens[idx].redacted) {
-        tokens[idx].redacted = true;
-        tokens[idx].suggested = false;
-        changed = true;
-      }
-    });
+    let type = null;
+    if (emailRx.test(clean)) type = 'email';
+    else if (dateRx.test(clean)) type = 'date';
+    if (!type) return;
+
+    const key = type + '|' + clean.toLowerCase();
+    if (!map.has(key)) map.set(key, { key, type, text: clean, tokenIds: [] });
+    map.get(key).tokenIds.push(tok.id);
   });
 
-  if (changed) markSessionDirty();
+  candidates = Array.from(map.values()).sort((a, b) => {
+    if (a.type !== b.type) return a.type.localeCompare(b.type);
+    return a.text.localeCompare(b.text, 'de');
+  });
+}
+
+// Ermittelt, ob alle / einige / keine Vorkommen eines Kandidaten aktuell geschwärzt sind
+function getCandidateState(cand) {
+  let allRedacted = true;
+  let anyRedacted = false;
+  cand.tokenIds.forEach(id => {
+    const t = tokens.find(tok => tok.id === id);
+    if (t && t.redacted) anyRedacted = true; else allRedacted = false;
+  });
+  if (cand.tokenIds.length === 0) return 'none';
+  if (allRedacted) return 'all';
+  if (anyRedacted) return 'partial';
+  return 'none';
+}
+
+function renderCandidatesList() {
+  const container = document.getElementById('candidatesList');
+  if (!container) return;
+
+  if (!candidates || candidates.length === 0) {
+    container.innerHTML = isEditorMode
+      ? '<p class="no-history" style="width:100%; padding:6px 0;">Keine Muster (Datum/E-Mail) erkannt</p>'
+      : '<p class="no-history" style="width:100%; padding:6px 0;">Noch keine Analyse durchgeführt</p>';
+    return;
+  }
+
+  container.innerHTML = '';
+  candidates.forEach(cand => {
+    const state = getCandidateState(cand);
+    const meta = CANDIDATE_TYPE_META[cand.type];
+    const row = document.createElement('div');
+    row.className = 'candidate-row';
+    row.innerHTML = `
+      <span class="candidate-check ${state === 'all' ? 'checked' : (state === 'partial' ? 'partial' : '')}"
+        onclick="toggleCandidate('${cand.key.replace(/'/g, "\\'")}')" title="Schwärzung für alle Vorkommen umschalten">
+        <span class="cc-box"></span>
+      </span>
+      <i data-lucide="${meta.icon}" size="12" style="flex-shrink:0; color:#94A3B8;"></i>
+      <span class="candidate-text" title="${escapeHtml(cand.text)}">${escapeHtml(cand.text)}</span>
+      ${cand.tokenIds.length > 1 ? `<span class="candidate-count">${cand.tokenIds.length}×</span>` : ''}
+    `;
+    container.appendChild(row);
+  });
+  lucide.createIcons();
+}
+
+function toggleCandidate(key) {
+  const cand = candidates.find(c => c.key === key);
+  if (!cand) return;
+  const makeRedacted = getCandidateState(cand) !== 'all';
+
+  saveHistory(`${makeRedacted ? 'Schwärzen' : 'Aufheben'}: "${cand.text.substring(0, 20)}"`);
+  cand.tokenIds.forEach(id => {
+    const t = tokens.find(tok => tok.id === id);
+    if (t) { t.redacted = makeRedacted; t.suggested = false; }
+  });
   renderEditor();
 }
 
-function addCustomTermFromManual(value) {
-  if (!value) return false;
-  const added = addCustomTermValue(value);
-  if (!added) return false;
-  if (isEditorMode) {
-    applyCustomTermsToAllTokens();
-    showToast(`„${value.trim()}“ hinzugefügt und alle Treffer geschwärzt.`, 'check-circle');
-  }
-  return true;
-}
-
-// ===========================
-// AUTO DETECT
-// ===========================
-function autoDetect(type) {
+function toggleAllCandidates(makeRedacted) {
   if (!isEditorMode) {
     showToast('Bitte zuerst Analyse starten.', 'alert-circle');
     return;
   }
+  if (!candidates || candidates.length === 0) {
+    showToast('Keine Kandidaten vorhanden.', 'info');
+    return;
+  }
 
+  saveHistory(makeRedacted ? 'Alle Kandidaten schwärzen' : 'Alle Kandidaten aufheben');
   let count = 0;
-  saveHistory(`Auto-Erkennung: ${type}`);
-
-  tokens.forEach(tok => {
-    if (tok.type !== 'word' || tok.redacted) return;
-    const clean = stripPunct(tok.text);
-    const match = type === 'all'
-      ? classifyToken(clean)
-      : PII_PATTERNS.find(p => p.id === type && p.test(clean));
-
-    if (match) {
-      tok.redacted = true;
-      tok.suggested = false;
-      count++;
-    }
+  candidates.forEach(cand => {
+    cand.tokenIds.forEach(id => {
+      const t = tokens.find(tok => tok.id === id);
+      if (t && t.redacted !== makeRedacted) { t.redacted = makeRedacted; t.suggested = false; count++; }
+    });
   });
-
   renderEditor();
-  if (count > 0) markSessionDirty();
-  const label = { dates: 'Datumsangaben', emails: 'E-Mail-Adressen', phones: 'Telefonnummern', all: 'Muster' }[type] || type;
-  showToast(count > 0 ? `${count} ${label} geschwärzt.` : `Keine ${label} gefunden.`, count > 0 ? 'check-circle' : 'info');
+  showToast(makeRedacted ? `${count} Vorkommen geschwärzt.` : `${count} Vorkommen aufgehoben.`, makeRedacted ? 'check-circle' : 'eraser');
 }
 
 // ===========================
-// CUSTOM TERMS (eigene zu schwärzende Begriffe — nur diese Sitzung)
+// CUSTOM TERMS (eigene zu schwärzende Begriffe)
 // ===========================
+const CUSTOM_TERMS_KEY = 'redactomat_custom_terms';
+
+function loadCustomTerms() {
+  try {
+    const raw = localStorage.getItem(CUSTOM_TERMS_KEY);
+    customTerms = raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    customTerms = [];
+  }
+}
+
+function saveCustomTermsToStorage() {
+  try {
+    localStorage.setItem(CUSTOM_TERMS_KEY, JSON.stringify(customTerms));
+  } catch (e) { /* Speicher nicht verfügbar — Liste bleibt nur für diese Sitzung erhalten */ }
+}
+
 function renderCustomTermsList() {
   const container = document.getElementById('customTermsList');
   if (customTerms.length === 0) {
-    container.innerHTML = '<p class="no-history" style="width:100%; padding:6px 0;">Noch keine eigenen Begriffe (nur diese Sitzung)</p>';
+    container.innerHTML = '<p class="no-history" style="width:100%; padding:6px 0;">Noch keine eigenen Begriffe</p>';
     return;
   }
   container.innerHTML = '';
@@ -1230,25 +1144,29 @@ function addCustomTerm() {
   const value = input.value.trim();
   if (!value) return;
 
-  const added = addCustomTermValue(value);
-  if (!added) {
+  const exists = customTerms.some(t => t.toLowerCase() === value.toLowerCase());
+  if (exists) {
     showToast('Begriff ist bereits in der Liste.', 'info');
     input.value = '';
     return;
   }
 
-  markSessionDirty();
+  customTerms.push(value);
+  saveCustomTermsToStorage();
+  renderCustomTermsList();
   input.value = '';
   input.focus();
 
   if (isEditorMode) {
-    applyCustomTermsToAllTokens();
+    markCustomTermSuggestions();
+    renderEditor();
   }
   showToast(`„${value}" zur Liste hinzugefügt.`, 'plus');
 }
 
 function removeCustomTerm(index) {
   const removed = customTerms.splice(index, 1);
+  saveCustomTermsToStorage();
   renderCustomTermsList();
   if (isEditorMode && removed.length) {
     // Vorschlags-Markierungen neu berechnen (bereits geschwärzte Wörter bleiben unangetastet)
@@ -1320,250 +1238,7 @@ function redactCustomTerms() {
   });
 
   renderEditor();
-  if (count > 0) markSessionDirty();
   showToast(count > 0 ? `${count} Wort(e) aus eigener Liste geschwärzt.` : 'Keine Treffer für eigene Begriffe gefunden.', count > 0 ? 'check-circle' : 'info');
-}
-
-// ===========================
-// REVIEW HINTS
-// ===========================
-function collectReviewHints() {
-  const hints = [];
-  const byCategory = {};
-
-  // Offene Vorschläge (gelb markiert, noch nicht geschwärzt)
-  const openSuggestions = tokens.filter(t => t.type === 'word' && t.suggested && !t.redacted);
-  if (openSuggestions.length > 0) {
-    hints.push({
-      id: 'suggestions',
-      label: 'Offene Vorschläge',
-      severity: 'high',
-      count: openSuggestions.length,
-      detail: previewTokens(openSuggestions, 3),
-      tokenIds: openSuggestions.map(t => t.id),
-      action: 'acceptSuggestions',
-    });
-  }
-
-  // Ungeschwärzte PII-Muster
-  tokens.forEach(t => {
-    if (t.type !== 'word' || t.redacted) return;
-    const clean = stripPunct(t.text);
-    const pattern = classifyToken(clean);
-    if (!pattern) return;
-    if (!byCategory[pattern.id]) {
-      byCategory[pattern.id] = { pattern, tokens: [] };
-    }
-    byCategory[pattern.id].tokens.push(t);
-  });
-
-  Object.values(byCategory).forEach(({ pattern, tokens: matched }) => {
-    const list = matched.filter(t => !t.redacted && !t.suggested);
-    if (list.length === 0) return;
-    hints.push({
-      id: pattern.id,
-      label: `Ungeschwärzt: ${pattern.label}`,
-      severity: pattern.severity,
-      count: list.length,
-      detail: previewTokens(list, 3),
-      tokenIds: list.map(t => t.id),
-      action: 'scroll',
-    });
-  });
-
-  // Eigene Begriffe noch im Klartext (nur wenn nicht schon unter „Offene Vorschläge")
-  if (customTerms.length > 0) {
-    const openIds = new Set(openSuggestions.map(t => t.id));
-    const wordIndices = tokens.map((t, i) => i).filter(i => tokens[i].type === 'word');
-    const customHits = new Set();
-    customTerms.forEach(term => {
-      const termWords = term.trim().split(/\s+/).filter(Boolean);
-      forEachTermMatch(wordIndices, termWords, (idx) => {
-        if (!tokens[idx].redacted) customHits.add(tokens[idx].id);
-      });
-    });
-    const uncovered = [...customHits].filter(id => !openIds.has(id));
-    if (uncovered.length > 0) {
-      const hitTokens = uncovered.map(id => tokens.find(t => t.id === id)).filter(Boolean);
-      hints.push({
-        id: 'custom_terms',
-        label: 'Eigene Begriffe noch sichtbar',
-        severity: 'high',
-        count: uncovered.length,
-        detail: previewTokens(hitTokens, 3),
-        tokenIds: uncovered,
-        action: 'redactCustom',
-      });
-    }
-  }
-
-  // Keine Schwärzung durchgeführt
-  const redactedCount = tokens.filter(t => t.type === 'word' && t.redacted).length;
-  if (redactedCount === 0 && tokens.some(t => t.type === 'word')) {
-    hints.push({
-      id: 'no_redactions',
-      label: 'Noch nichts geschwärzt',
-      severity: 'medium',
-      count: 1,
-      detail: 'Dokument enthält Klartext — vor Export prüfen',
-      tokenIds: [],
-      action: 'none',
-    });
-  }
-
-  // Manuelle Prüfpunkte anhand Schlüsselwörter im Klartext
-  const plain = getUnredactedText().toLowerCase();
-  const manualFound = MANUAL_CHECKS.filter(ch =>
-    ch.keywords.some(kw => plain.includes(kw))
-  );
-
-  return { hints, manualFound, redactedCount };
-}
-
-function previewTokens(tokenList, max) {
-  const samples = tokenList.slice(0, max).map(t => t.text.trim()).filter(Boolean);
-  const extra = tokenList.length > max ? ` (+${tokenList.length - max})` : '';
-  return samples.join(', ') + extra;
-}
-
-function renderReviewHints() {
-  const section = document.getElementById('reviewSection');
-  const statusEl = document.getElementById('reviewStatus');
-  const statusMsg = document.getElementById('reviewStatusMsg');
-  const listEl = document.getElementById('reviewHintsList');
-  const checklistEl = document.getElementById('reviewChecklist');
-  const checklistItems = document.getElementById('reviewChecklistItems');
-  const btnAccept = document.getElementById('btnAcceptSuggestions');
-
-  if (!isEditorMode) {
-    section.style.display = 'none';
-    return;
-  }
-  section.style.display = 'block';
-
-  const { hints, manualFound, redactedCount } = collectReviewHints();
-  const highCount = hints.filter(h => h.severity === 'high').length;
-
-  // Status-Banner
-  statusEl.className = 'review-status';
-  if (hints.length === 0 && manualFound.length === 0) {
-    statusEl.classList.add('ok');
-    statusEl.innerHTML = `
-      <span class="review-status-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></span>
-      <div class="review-status-text">
-        <strong>Keine offenen Hinweise</strong>
-        <span id="reviewStatusMsg">${redactedCount} Wort/Wörter geschwärzt. Bitte trotzdem einmal den gesamten Text durchlesen.</span>
-      </div>`;
-  } else if (highCount > 0) {
-    statusEl.classList.add('critical');
-    statusEl.innerHTML = `
-      <span class="review-status-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span>
-      <div class="review-status-text">
-        <strong>${highCount} dringende${highCount === 1 ? 'r' : ''} Hinweis${highCount === 1 ? '' : 'e'}</strong>
-        <span id="reviewStatusMsg">Mögliche personenbezogene Daten sind noch im Klartext sichtbar.</span>
-      </div>`;
-  } else {
-    statusEl.classList.add('warn');
-    statusEl.innerHTML = `
-      <span class="review-status-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></span>
-      <div class="review-status-text">
-        <strong>Prüfung empfohlen</strong>
-        <span id="reviewStatusMsg">${hints.length} Hinweis${hints.length === 1 ? '' : 'e'} — bitte vor dem Export prüfen.</span>
-      </div>`;
-  }
-
-  // Hinweis-Liste
-  if (hints.length === 0) {
-    listEl.innerHTML = '<p class="no-history" style="padding:8px 0;">Keine automatischen Hinweise</p>';
-  } else {
-    listEl.innerHTML = '';
-    hints.forEach(hint => {
-      const div = document.createElement('div');
-      div.className = `review-hint ${hint.severity === 'high' ? 'high' : hint.severity === 'medium' ? 'medium' : 'low'}`;
-      div.innerHTML = `
-        <div class="review-hint-body">
-          <div class="review-hint-label">${escapeHtml(hint.label)}</div>
-          <div class="review-hint-detail">${escapeHtml(hint.detail)}</div>
-        </div>
-        <span class="review-hint-count">${hint.count}×</span>`;
-      if (hint.action !== 'none') {
-        div.addEventListener('click', () => handleReviewHint(hint));
-      }
-      listEl.appendChild(div);
-    });
-  }
-
-  // Manuelle Checkliste
-  if (manualFound.length > 0) {
-    checklistEl.style.display = 'block';
-    checklistItems.innerHTML = '';
-    manualFound.forEach(ch => {
-      const div = document.createElement('div');
-      div.className = 'review-check-item found';
-      div.innerHTML = `
-        <span class="rci-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></span>
-        <span><strong>${escapeHtml(ch.label)}:</strong> ${escapeHtml(ch.hint)}</span>`;
-      checklistItems.appendChild(div);
-    });
-  } else {
-    checklistEl.style.display = 'none';
-  }
-
-  // Button: Alle Vorschläge übernehmen
-  const hasSuggestions = hints.some(h => h.id === 'suggestions');
-  btnAccept.style.display = hasSuggestions ? 'inline-flex' : 'none';
-}
-
-function handleReviewHint(hint) {
-  if (hint.action === 'acceptSuggestions') {
-    acceptAllSuggestions();
-  } else if (hint.action === 'redactCustom') {
-    redactCustomTerms();
-  } else if (hint.tokenIds.length > 0) {
-    scrollToToken(hint.tokenIds[0]);
-  }
-}
-
-function scrollToToken(tokenId) {
-  const el = document.querySelector(`#editorPane [data-id="${tokenId}"]`);
-  if (!el) return;
-  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  el.classList.remove('highlight-flash');
-  void el.offsetWidth; // reflow for re-trigger
-  el.classList.add('highlight-flash');
-  setTimeout(() => el.classList.remove('highlight-flash'), 2500);
-}
-
-function acceptAllSuggestions() {
-  const pending = tokens.filter(t => t.type === 'word' && t.suggested && !t.redacted);
-  if (pending.length === 0) {
-    showToast('Keine offenen Vorschläge.', 'info');
-    return;
-  }
-  saveHistory('Alle Vorschläge übernommen');
-  pending.forEach(t => { t.redacted = true; t.suggested = false; });
-  markSessionDirty();
-  renderEditor();
-  showToast(`${pending.length} Vorschlag/Vorschläge übernommen.`, 'check-check');
-}
-
-function getReviewSummary() {
-  const { hints, manualFound } = collectReviewHints();
-  return { hints, manualFound, hasIssues: hints.length > 0 || manualFound.length > 0 };
-}
-
-function confirmIfReviewNeeded(actionLabel) {
-  const { hints, manualFound, hasIssues } = getReviewSummary();
-  if (!hasIssues) return true;
-
-  const lines = [];
-  hints.slice(0, 5).forEach(h => lines.push(`• ${h.label} (${h.count}×)`));
-  if (hints.length > 5) lines.push(`• … und ${hints.length - 5} weitere`);
-  if (manualFound.length > 0) lines.push(`• ${manualFound.length} manuelle Prüfpunkte`);
-
-  return confirm(
-    `Vor dem Export (${actionLabel}) sind noch offene Hinweise:\n\n${lines.join('\n')}\n\nTrotzdem exportieren?`
-  );
 }
 
 // ===========================
@@ -1591,7 +1266,6 @@ function undo() {
 function clearAll() {
   saveHistory('Alle aufheben');
   tokens.forEach(t => { t.redacted = false; t.suggested = false; });
-  markSessionDirty();
   renderEditor();
   showToast('Alle Schwärzungen aufgehoben.', 'eraser');
 }
@@ -1604,7 +1278,6 @@ function getProcessedText(placeholder = '[ANONYMISIERT]') {
 }
 
 function copyText() {
-  if (!confirmIfReviewNeeded('Text kopieren')) return;
   const text = getProcessedText('[ANONYMISIERT]');
   navigator.clipboard.writeText(text).then(() => {
     showToast('Text kopiert!', 'clipboard-copy');
@@ -1612,7 +1285,6 @@ function copyText() {
 }
 
 function copyTextXXX() {
-  if (!confirmIfReviewNeeded('Kopieren mit [XXX]')) return;
   const text = getProcessedText('[XXX]');
   navigator.clipboard.writeText(text).then(() => {
     showToast('Text mit [XXX] kopiert!', 'clipboard');
@@ -1620,7 +1292,6 @@ function copyTextXXX() {
 }
 
 function downloadTxt() {
-  if (!confirmIfReviewNeeded('TXT-Download')) return;
   const text = getProcessedText('[ANONYMISIERT]');
   const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
   const url = URL.createObjectURL(blob);
@@ -1640,15 +1311,6 @@ function showExportOverlay() {
     showToast('Bitte zuerst Analyse starten.', 'alert-circle');
     return;
   }
-  renderReviewHints();
-  const notice = document.getElementById('exportReviewNotice');
-  const { hints, manualFound } = collectReviewHints();
-  if (hints.length === 0 && manualFound.length === 0) {
-    notice.innerHTML = '<div class="review-status ok" style="margin:0;"><span class="review-status-text"><strong>Keine offenen Hinweise</strong> — Export kann erfolgen. Bitte Text dennoch kurz durchlesen.</span></div>';
-  } else {
-    const items = hints.slice(0, 4).map(h => `${h.label} (${h.count}×)`).join(', ');
-    notice.innerHTML = `<div class="review-status warn" style="margin:0;"><span class="review-status-text"><strong>${hints.length + manualFound.length} offene Hinweise</strong> — ${escapeHtml(items)}${hints.length > 4 ? ' …' : ''}</span></div>`;
-  }
   document.getElementById('exportOverlay').classList.add('show');
   setTimeout(() => lucide.createIcons(), 50);
 }
@@ -1657,7 +1319,6 @@ function hideExportOverlay() {
 }
 
 async function exportPDF() {
-  if (!confirmIfReviewNeeded('PDF-Export')) return;
   const btn = document.getElementById('btnExportPDF');
   btn.disabled = true;
   btn.innerHTML = '<span style="opacity:.6">Erstelle PDF…</span>';
@@ -1666,10 +1327,9 @@ async function exportPDF() {
     const { PDFDocument, rgb, StandardFonts } = PDFLib;
 
     const pdfDoc = await PDFDocument.create();
-    // Generic metadata only — no document-specific titles in PDF properties
-    pdfDoc.setTitle('Schwaerzungsdokument');
-    pdfDoc.setAuthor('');
-    pdfDoc.setCreator('Redact-o-Mat');
+    pdfDoc.setTitle(document.getElementById('pdfTitle').value || 'Redact-o-Mat Export');
+    pdfDoc.setAuthor('Redact-o-Mat (DSGVO)');
+    pdfDoc.setCreator('Redact-o-Mat v1.0');
 
     const font      = await pdfDoc.embedFont(StandardFonts.Courier);
     const fontBold  = await pdfDoc.embedFont(StandardFonts.CourierBold);
@@ -1824,7 +1484,6 @@ function switchToEditorMode() {
   document.getElementById('editorToolbar').style.display = 'flex';
   document.getElementById('statsBar').style.display = 'flex';
   document.getElementById('meterBar').style.display = 'block';
-  document.getElementById('reviewSection').style.display = 'block';
   document.getElementById('panelTitle').textContent = 'Schwärzungs-Editor';
   lucide.createIcons();
 }
@@ -1833,16 +1492,16 @@ function resetToInput() {
   isEditorMode = false;
   tokens = [];
   history = [];
-  sessionDirty = !!document.getElementById('inputTextarea').value.trim();
+  candidates = [];
   document.getElementById('inputTextarea').style.display = 'block';
   document.getElementById('editorPane').style.display = 'none';
   document.getElementById('inputToolbar').style.display = 'flex';
   document.getElementById('editorToolbar').style.display = 'none';
   document.getElementById('statsBar').style.display = 'none';
   document.getElementById('meterBar').style.display = 'none';
-  document.getElementById('reviewSection').style.display = 'none';
   document.getElementById('panelTitle').textContent = 'Texteingabe';
   document.getElementById('historyList').innerHTML = '<p class="no-history">Noch keine Schwärzungen</p>';
+  renderCandidatesList();
   lucide.createIcons();
 }
 
@@ -1919,62 +1578,6 @@ function showToast(msg, icon = 'check-circle') {
 }
 
 // ===========================
-// SESSION SECURITY
-// ===========================
-function markSessionDirty() {
-  sessionDirty = true;
-}
-
-function wipeSessionState() {
-  tokens = [];
-  history = [];
-  customTerms = [];
-  isEditorMode = false;
-  selectionStart = null;
-  sessionDirty = false;
-
-  const textarea = document.getElementById('inputTextarea');
-  textarea.value = '';
-  document.getElementById('pdfTitle').value = '';
-  document.getElementById('customTermInput').value = '';
-
-  document.getElementById('inputTextarea').style.display = 'block';
-  document.getElementById('editorPane').style.display = 'none';
-  document.getElementById('editorPane').innerHTML = '';
-  document.getElementById('inputToolbar').style.display = 'flex';
-  document.getElementById('editorToolbar').style.display = 'none';
-  document.getElementById('statsBar').style.display = 'none';
-  document.getElementById('meterBar').style.display = 'none';
-  document.getElementById('reviewSection').style.display = 'none';
-  document.getElementById('panelTitle').textContent = 'Texteingabe';
-  document.getElementById('historyList').innerHTML = '<p class="no-history">Noch keine Schwärzungen</p>';
-  renderCustomTermsList();
-  hideExportOverlay();
-  lucide.createIcons();
-}
-
-function secureExit() {
-  if (sessionDirty && !confirm('Alle Texte und Schwärzungen unwiderruflich löschen?')) return;
-  wipeSessionState();
-  showToast('Sitzung beendet — alle Daten entfernt.', 'shield-off');
-}
-
-window.addEventListener('beforeunload', (e) => {
-  if (sessionDirty) {
-    e.preventDefault();
-    e.returnValue = '';
-  }
-});
-
-document.getElementById('inputTextarea').addEventListener('input', () => {
-  if (!isEditorMode && document.getElementById('inputTextarea').value.trim()) {
-    markSessionDirty();
-  } else if (!isEditorMode && !document.getElementById('inputTextarea').value.trim()) {
-    sessionDirty = false;
-  }
-});
-
-// ===========================
 // KEYBOARD SHORTCUTS
 // ===========================
 document.addEventListener('keydown', (e) => {
@@ -1983,9 +1586,10 @@ document.addEventListener('keydown', (e) => {
     undo();
   }
   if ((e.ctrlKey || e.metaKey) && e.key === 'c' && isEditorMode) {
+    // Only intercept if not selecting text in textarea
     if (document.activeElement !== document.getElementById('inputTextarea')) {
       e.preventDefault();
-      copyText(); // includes review check
+      copyText();
     }
   }
   if (e.key === 'Escape') {
@@ -1999,5 +1603,3 @@ iconObserver.observe(document.getElementById('historyList'), { childList: true }
 </script>
 </body>
 </html>
-anonymous1.html
-anonymous1.html wird angezeigt.
