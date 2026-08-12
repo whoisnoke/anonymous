@@ -1206,7 +1206,9 @@ function toggleToken(id) {
   tok.redacted = !tok.redacted;
   tok.suggested = false;
   if (tok.redacted) {
-    learnTerm(stripPunct(tok.text));
+    const clean = stripPunct(tok.text);
+    learnTerm(clean);
+    registerManualRedaction(clean);
   } else {
     tokenPlaceholder.delete(tok.id);
   }
@@ -1230,9 +1232,24 @@ function redactRange(from, to) {
   if (changed) {
     // Die gesamte markierte Phrase (z.B. "Max Mustermann") als EIN Begriff lernen,
     // nicht als Einzelwörter — das entspricht eher dem, was tatsächlich markiert wurde.
-    learnTerm(phraseWords.filter(Boolean).join(' '));
+    const phrase = phraseWords.filter(Boolean).join(' ');
+    learnTerm(phrase);
+    registerManualRedaction(phrase);
     refreshEditorUI();
   }
+}
+
+// Trägt einen manuell geschwärzten Begriff automatisch in "Eigene Begriffe" ein,
+// damit sofort ein Platzhalter dafür gesetzt werden kann — auch wenn der Begriff
+// vorher NICHT als Kandidat (Datum/E-Mail/Name) vorgeschlagen wurde.
+function registerManualRedaction(text) {
+  const clean = String(text || '').trim();
+  if (!clean) return;
+  const exists = customTerms.some(t => t.text.toLowerCase() === clean.toLowerCase());
+  if (exists) return;
+  customTerms.push({ text: clean, replacement: '' });
+  saveCustomTermsToStorage();
+  renderCustomTermsList();
 }
 
 // ===========================
@@ -1467,9 +1484,9 @@ function renderCandidatesList() {
         <span class="candidate-text" title="${escapeHtml(cand.text)}">${escapeHtml(cand.text)}</span>
         ${cand.occurrences > 1 ? `<span class="candidate-count">${cand.occurrences}×</span>` : ''}
       </div>
-      ${state !== 'none' ? `<input type="text" class="tc-placeholder-input" placeholder="Platzhalter (optional)"
+      ${`<input type="text" class="tc-placeholder-input" placeholder="Platzhalter (optional), auch vor dem Schwärzen setzbar"
         value="${escapeHtml(cand.replacement || '')}"
-        oninput="setCandidateReplacement('${safeKey}', this.value)">` : ''}
+        oninput="setCandidateReplacement('${safeKey}', this.value)">`}
     `;
     container.appendChild(row);
   });
