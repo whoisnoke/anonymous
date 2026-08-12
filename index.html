@@ -278,6 +278,25 @@
     user-select: none;
   }
 
+  .token.replaced {
+    background: var(--green-light) !important;
+    color: var(--green) !important;
+    border: 1px solid #A7F3D0;
+    border-radius: 3px;
+    padding: 1px 5px;
+    font-weight: 600;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.92em;
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .view-toggle-btn.active {
+    background: var(--navy);
+    color: white;
+    border-color: var(--navy);
+  }
+
   .token.suggested {
     background: var(--amber-light);
     outline: 1.5px solid var(--amber-border);
@@ -505,6 +524,29 @@
     color: var(--amber);
     max-width: 100%;
   }
+  .term-chip-row {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 5px;
+    width: 100%;
+    border-radius: 6px;
+    padding: 7px 9px;
+  }
+  .term-chip-row span { color: var(--navy); font-weight: 500; }
+  .tc-placeholder-input {
+    width: 100%;
+    padding: 5px 7px;
+    border: 1px solid var(--amber-border);
+    border-radius: 4px;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--navy);
+    background: white;
+    outline: none;
+  }
+  .tc-placeholder-input:focus { border-color: var(--navy); }
+  .tc-placeholder-input::placeholder { color: #B0AA9A; }
   .term-chip span {
     overflow: hidden;
     text-overflow: ellipsis;
@@ -528,6 +570,11 @@
   }
 
   /* CANDIDATE CHECKLIST */
+  .candidate-row-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
   .candidate-row {
     display: flex;
     align-items: center;
@@ -686,6 +733,13 @@
         <span class="shortcut-hint">Strg+Z</span>
       </button>
       <div class="separator"></div>
+      <button class="btn btn-ghost view-toggle-btn active" id="btnViewRedacted" onclick="setViewMode('redacted')" title="Geschwärzte Wörter als schwarzen Balken anzeigen">
+        <i data-lucide="square" size="13"></i> Schwärzen
+      </button>
+      <button class="btn btn-ghost view-toggle-btn" id="btnViewReplaced" onclick="setViewMode('replaced')" title="Geschwärzte Wörter als Platzhaltertext anzeigen">
+        <i data-lucide="type" size="13"></i> Ersetzen
+      </button>
+      <div class="separator"></div>
       <button class="btn btn-danger" onclick="clearAll()">
         <i data-lucide="eraser" size="13"></i> Alle aufheben
       </button>
@@ -749,7 +803,7 @@
           <i data-lucide="plus" size="14"></i>
         </button>
       </div>
-      <div id="customTermsList" style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px;">
+      <div id="customTermsList" style="display:flex; flex-direction:column; gap:6px; margin-bottom:10px; max-height:280px; overflow-y:auto;">
         <p class="no-history" style="width:100%; padding:6px 0;">Noch keine eigenen Begriffe</p>
       </div>
       <button class="btn btn-amber" style="width:100%; justify-content:center;" onclick="redactCustomTerms()">
@@ -760,11 +814,18 @@
     <!-- EXPORT -->
     <div class="action-section">
       <h3>Export</h3>
+      <div style="margin-bottom:10px;">
+        <label style="font-size:11px; color:#94A3B8; display:block; margin-bottom:4px;">Standard-Platzhalter (für Wörter ohne eigenen Begriffs-Platzhalter)</label>
+        <input type="text" id="defaultPlaceholderInput" value="[ANONYMISIERT]"
+          style="width:100%; padding:6px 8px; border:1.5px solid #CBD5E1; border-radius:4px; font-family:'DM Mono',monospace; font-size:12px; color:var(--navy); outline:none;"
+          onfocus="this.style.borderColor='var(--navy)'" onblur="this.style.borderColor='#CBD5E1'"
+          oninput="setDefaultPlaceholder(this.value)">
+      </div>
       <div class="action-grid">
         <button class="action-btn-large" onclick="copyText()">
           <i data-lucide="clipboard-copy" size="18"></i>
           <div class="abl-title">Text kopieren</div>
-          <div class="abl-desc">Geschwärzter Text mit [ANONYMISIERT]<br><span class="shortcut-hint">Strg+C</span></div>
+          <div class="abl-desc">Mit Platzhaltern statt Original<br><span class="shortcut-hint">Strg+C</span></div>
         </button>
         <button class="action-btn-large" onclick="showExportOverlay()">
           <i data-lucide="file-down" size="18"></i>
@@ -779,7 +840,12 @@
         <button class="action-btn-large" onclick="downloadTxt()">
           <i data-lucide="download" size="18"></i>
           <div class="abl-title">Als .txt</div>
-          <div class="abl-desc">Textdatei mit [ANONYMISIERT] herunterladen</div>
+          <div class="abl-desc">Textdatei mit Platzhaltern herunterladen</div>
+        </button>
+        <button class="action-btn-large" onclick="downloadDictionary()">
+          <i data-lucide="book-open" size="18"></i>
+          <div class="abl-title">Wörterbuch sichern</div>
+          <div class="abl-desc">dictionary.json inkl. gelernter Begriffe herunterladen</div>
         </button>
       </div>
     </div>
@@ -828,10 +894,14 @@ let spanById = new Map();  // id -> DOM span element, O(1) partial re-render (pe
 let history = []; // stack of token-state snapshots for undo
 let isEditorMode = false;
 let selectionStart = null;
-let customTerms = []; // user-defined words/phrases to redact
-let candidates = []; // auto-detected candidates (dates/emails/names), grouped by unique text
-let dictionaryTerms = []; // flat list of names/terms loaded from dictionary.json
+let customTerms = []; // user-defined { text, replacement } to redact
+let candidates = []; // auto-detected candidates (dates/emails/names), grouped by unique text, each with optional .replacement
+let dictionaryTerms = []; // flat list of names/terms loaded from dictionary.json + gelernte Begriffe
 let dictionaryLoadPromise = null;
+let viewMode = 'redacted'; // 'redacted' = schwarzer Balken, 'replaced' = Platzhaltertext anzeigen
+let tokenPlaceholder = new Map(); // tokenId -> spezifischer Platzhaltertext (von Begriff/Kandidat übernommen)
+let defaultPlaceholder = '[ANONYMISIERT]'; // Fallback-Platzhalter für Tokens ohne eigenen Begriff
+let learnedTerms = new Set(); // Begriffe, die durch Schwärzen automatisch "gelernt" wurden
 
 // Lädt dictionary.json — erwartetes Format: flaches Array von Strings,
 // z.B. ["Max Mustermann", "Erika Musterfrau", "Musterstraße"].
@@ -844,14 +914,67 @@ async function loadDictionary() {
     const data = await res.json();
     if (Array.isArray(data)) {
       dictionaryTerms = data.filter(x => typeof x === 'string' && x.trim().length > 0);
-      buildDictionaryIndex();
     } else {
       console.warn('dictionary.json hat nicht das erwartete Format (flaches Array von Strings).');
     }
   } catch (e) {
     console.warn('dictionary.json konnte nicht geladen werden:', e);
     showToast('dictionary.json konnte nicht geladen werden. Falls du die Seite per Doppelklick öffnest, starte stattdessen einen lokalen Server (z.B. "python3 -m http.server" im Ordner) und öffne die Seite über http://localhost.', 'alert-circle');
+  } finally {
+    // Gelernte Begriffe (localStorage) werden UNABHÄNGIG davon eingebunden, ob
+    // dictionary.json erfolgreich geladen werden konnte — so funktioniert das
+    // automatische Lernen auch dann, wenn die JSON-Datei per file:// blockiert wird.
+    loadLearnedTerms();
+    mergeLearnedIntoDictionary();
+    buildDictionaryIndex();
   }
+}
+
+const LEARNED_TERMS_KEY = 'redactomat_learned_terms';
+
+function loadLearnedTerms() {
+  try {
+    const raw = localStorage.getItem(LEARNED_TERMS_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    learnedTerms = new Set(Array.isArray(arr) ? arr : []);
+  } catch (e) {
+    learnedTerms = new Set();
+  }
+}
+
+function saveLearnedTerms() {
+  try {
+    localStorage.setItem(LEARNED_TERMS_KEY, JSON.stringify([...learnedTerms]));
+  } catch (e) { /* Speicher nicht verfügbar — gelernte Begriffe bleiben nur für diese Sitzung erhalten */ }
+}
+
+function mergeLearnedIntoDictionary() {
+  const existing = new Set(dictionaryTerms.map(t => t.toLowerCase()));
+  learnedTerms.forEach(term => {
+    if (!existing.has(term.toLowerCase())) {
+      dictionaryTerms.push(term);
+      existing.add(term.toLowerCase());
+    }
+  });
+}
+
+// Merkt sich einen geschwärzten Begriff dauerhaft (localStorage) und nimmt ihn
+// sofort ins aktive Wörterbuch auf, damit er bei der nächsten Analyse
+// automatisch als Kandidat vorgeschlagen wird.
+function learnTerm(text) {
+  const clean = String(text || '').trim();
+  // Nur sinnvolle Wort-/Namensbestandteile lernen, keine Ein-Zeichen-Reste
+  if (clean.replace(/[^\p{L}]/gu, '').length < 2) return;
+  const key = clean.toLowerCase();
+  if (learnedTerms.has(clean)) return;
+  // Groß-/Kleinschreibungs-Duplikate vermeiden
+  for (const existing of learnedTerms) {
+    if (existing.toLowerCase() === key) return;
+  }
+  learnedTerms.add(clean);
+  saveLearnedTerms();
+  mergeLearnedIntoDictionary();
+  buildDictionaryIndex();
 }
 
 // Gruppiert alle Wörterbuch-Einträge nach ihrem (kleingeschriebenen) ersten Wort.
@@ -891,6 +1014,15 @@ document.addEventListener('DOMContentLoaded', () => {
   renderCustomTermsList();
   dictionaryLoadPromise = loadDictionary();
   setupEditorPaneEvents();
+
+  try {
+    const savedPlaceholder = localStorage.getItem('redactomat_default_placeholder');
+    if (savedPlaceholder) {
+      defaultPlaceholder = savedPlaceholder;
+      const input = document.getElementById('defaultPlaceholderInput');
+      if (input) input.value = savedPlaceholder;
+    }
+  } catch (e) { /* Speicher nicht verfügbar — Standard-Platzhalter bleibt [ANONYMISIERT] */ }
 });
 
 // ===========================
@@ -977,8 +1109,6 @@ function renderEditor() {
     }
 
     const span = document.createElement('span');
-    span.className = 'token' + (tok.redacted ? ' redacted' : (tok.suggested ? ' suggested' : ''));
-    span.textContent = tok.text;
     span.dataset.id = tok.id;
     span.dataset.idx = idx;
     // Klick-/Auswahl-Verhalten läuft über EINEN delegierten Listener auf
@@ -986,6 +1116,7 @@ function renderEditor() {
     // pro einzelnem Wort — bei großen Texten sonst ein Perf-Killer.
     fragment.appendChild(span);
     spanById.set(tok.id, span);
+    updateTokenSpanClass(tok); // setzt Klasse + Text passend zum aktuellen viewMode
   });
 
   pane.appendChild(fragment);
@@ -995,13 +1126,29 @@ function renderEditor() {
   renderCandidatesList();
 }
 
-// Aktualisiert nur die CSS-Klasse eines einzelnen Token-Spans, ohne das
-// komplette Pane neu zu rendern. Für Aktionen, die nur wenige Tokens
-// betreffen (Klick, Kandidat togglen, eigene Begriffe schwärzen, …).
+// Aktualisiert nur die CSS-Klasse (und ggf. den sichtbaren Text) eines
+// einzelnen Token-Spans, ohne das komplette Pane neu zu rendern. Für
+// Aktionen, die nur wenige Tokens betreffen (Klick, Kandidat togglen, …).
 function updateTokenSpanClass(tok) {
   const span = spanById.get(tok.id);
   if (!span) return;
-  span.className = 'token' + (tok.redacted ? ' redacted' : (tok.suggested ? ' suggested' : ''));
+
+  if (tok.redacted && viewMode === 'replaced') {
+    span.className = 'token replaced';
+    span.textContent = tokenPlaceholder.get(tok.id) || defaultPlaceholder;
+  } else {
+    span.className = 'token' + (tok.redacted ? ' redacted' : (tok.suggested ? ' suggested' : ''));
+    span.textContent = tok.text;
+  }
+}
+
+// Wechselt zwischen "Schwärzen" (schwarzer Balken, Originaltext bleibt im
+// DOM verdeckt) und "Ersetzen" (zeigt den zugewiesenen Platzhaltertext an).
+function setViewMode(mode) {
+  viewMode = mode;
+  document.getElementById('btnViewRedacted').classList.toggle('active', mode === 'redacted');
+  document.getElementById('btnViewReplaced').classList.toggle('active', mode === 'replaced');
+  tokens.forEach(t => { if (t.type === 'word' && t.redacted) updateTokenSpanClass(t); });
 }
 
 // Einmalig beim Laden der Seite registriert (siehe DOMContentLoaded):
@@ -1058,6 +1205,11 @@ function toggleToken(id) {
   saveHistory(`"${tok.text.substring(0, 20)}"`);
   tok.redacted = !tok.redacted;
   tok.suggested = false;
+  if (tok.redacted) {
+    learnTerm(stripPunct(tok.text));
+  } else {
+    tokenPlaceholder.delete(tok.id);
+  }
   updateTokenSpanClass(tok);
   refreshEditorUI();
 }
@@ -1065,15 +1217,22 @@ function toggleToken(id) {
 function redactRange(from, to) {
   saveHistory('Phrasenauswahl');
   let changed = false;
+  const phraseWords = [];
   for (let i = from; i <= to; i++) {
     if (tokens[i] && tokens[i].type === 'word') {
       tokens[i].redacted = true;
       tokens[i].suggested = false;
+      phraseWords.push(stripPunct(tokens[i].text));
       updateTokenSpanClass(tokens[i]);
       changed = true;
     }
   }
-  if (changed) refreshEditorUI();
+  if (changed) {
+    // Die gesamte markierte Phrase (z.B. "Max Mustermann") als EIN Begriff lernen,
+    // nicht als Einzelwörter — das entspricht eher dem, was tatsächlich markiert wurde.
+    learnTerm(phraseWords.filter(Boolean).join(' '));
+    refreshEditorUI();
+  }
 }
 
 // ===========================
@@ -1295,32 +1454,61 @@ function renderCandidatesList() {
   candidates.forEach(cand => {
     const state = getCandidateState(cand);
     const meta = CANDIDATE_TYPE_META[cand.type];
+    const safeKey = cand.key.replace(/'/g, "\\'");
     const row = document.createElement('div');
-    row.className = 'candidate-row';
+    row.className = 'candidate-row-wrap';
     row.innerHTML = `
-      <span class="candidate-check ${state === 'all' ? 'checked' : (state === 'partial' ? 'partial' : '')}"
-        onclick="toggleCandidate('${cand.key.replace(/'/g, "\\'")}')" title="Schwärzung für alle Vorkommen umschalten">
-        <span class="cc-box"></span>
-      </span>
-      <i data-lucide="${meta.icon}" size="12" style="flex-shrink:0; color:#94A3B8;"></i>
-      <span class="candidate-text" title="${escapeHtml(cand.text)}">${escapeHtml(cand.text)}</span>
-      ${cand.occurrences > 1 ? `<span class="candidate-count">${cand.occurrences}×</span>` : ''}
+      <div class="candidate-row">
+        <span class="candidate-check ${state === 'all' ? 'checked' : (state === 'partial' ? 'partial' : '')}"
+          onclick="toggleCandidate('${safeKey}')" title="Schwärzung für alle Vorkommen umschalten">
+          <span class="cc-box"></span>
+        </span>
+        <i data-lucide="${meta.icon}" size="12" style="flex-shrink:0; color:#94A3B8;"></i>
+        <span class="candidate-text" title="${escapeHtml(cand.text)}">${escapeHtml(cand.text)}</span>
+        ${cand.occurrences > 1 ? `<span class="candidate-count">${cand.occurrences}×</span>` : ''}
+      </div>
+      ${state !== 'none' ? `<input type="text" class="tc-placeholder-input" placeholder="Platzhalter (optional)"
+        value="${escapeHtml(cand.replacement || '')}"
+        oninput="setCandidateReplacement('${safeKey}', this.value)">` : ''}
     `;
     container.appendChild(row);
   });
   lucide.createIcons();
 }
 
+function setCandidateReplacement(key, value) {
+  const cand = candidates.find(c => c.key === key);
+  if (!cand) return;
+  cand.replacement = value;
+  const placeholder = value && value.trim() ? value.trim() : null;
+  cand.tokenIds.forEach(id => {
+    const t = tokenById.get(id);
+    if (!t || !t.redacted) return;
+    if (placeholder) tokenPlaceholder.set(t.id, placeholder);
+    else tokenPlaceholder.delete(t.id);
+    updateTokenSpanClass(t);
+  });
+}
+
 function toggleCandidate(key) {
   const cand = candidates.find(c => c.key === key);
   if (!cand) return;
   const makeRedacted = getCandidateState(cand) !== 'all';
+  const placeholder = cand.replacement && cand.replacement.trim() ? cand.replacement.trim() : null;
 
   saveHistory(`${makeRedacted ? 'Schwärzen' : 'Aufheben'}: "${cand.text.substring(0, 20)}"`);
   cand.tokenIds.forEach(id => {
     const t = tokenById.get(id);
-    if (t) { t.redacted = makeRedacted; t.suggested = false; updateTokenSpanClass(t); }
+    if (!t) return;
+    t.redacted = makeRedacted;
+    t.suggested = false;
+    if (makeRedacted && placeholder) tokenPlaceholder.set(t.id, placeholder);
+    else tokenPlaceholder.delete(t.id);
+    updateTokenSpanClass(t);
   });
+  // Namen automatisch ins Wörterbuch übernehmen (Datum/E-Mail sind für die
+  // Namenserkennung nicht relevant und würden das Wörterbuch nur aufblähen)
+  if (makeRedacted && cand.type === 'name') learnTerm(cand.text);
   refreshEditorUI();
 }
 
@@ -1337,15 +1525,21 @@ function toggleAllCandidates(makeRedacted) {
   saveHistory(makeRedacted ? 'Alle Kandidaten schwärzen' : 'Alle Kandidaten aufheben');
   let count = 0;
   candidates.forEach(cand => {
+    const placeholder = cand.replacement && cand.replacement.trim() ? cand.replacement.trim() : null;
+    let matched = false;
     cand.tokenIds.forEach(id => {
       const t = tokenById.get(id);
       if (t && t.redacted !== makeRedacted) {
         t.redacted = makeRedacted;
         t.suggested = false;
+        if (makeRedacted && placeholder) tokenPlaceholder.set(t.id, placeholder);
+        else tokenPlaceholder.delete(t.id);
         updateTokenSpanClass(t);
         count++;
+        matched = true;
       }
     });
+    if (makeRedacted && matched && cand.type === 'name') learnTerm(cand.text);
   });
   refreshEditorUI();
   showToast(makeRedacted ? `${count} Vorkommen geschwärzt.` : `${count} Vorkommen aufgehoben.`, makeRedacted ? 'check-circle' : 'eraser');
@@ -1359,7 +1553,9 @@ const CUSTOM_TERMS_KEY = 'redactomat_custom_terms';
 function loadCustomTerms() {
   try {
     const raw = localStorage.getItem(CUSTOM_TERMS_KEY);
-    customTerms = raw ? JSON.parse(raw) : [];
+    const parsed = raw ? JSON.parse(raw) : [];
+    // Migration: ältere Version speicherte reine Strings statt {text, replacement}
+    customTerms = parsed.map(t => typeof t === 'string' ? { text: t, replacement: '' } : t);
   } catch (e) {
     customTerms = [];
   }
@@ -1379,19 +1575,32 @@ function renderCustomTermsList() {
   }
   container.innerHTML = '';
   customTerms.forEach((term, i) => {
-    const chip = document.createElement('div');
-    chip.className = 'term-chip';
-    chip.innerHTML = `
-      <span title="${escapeHtml(term)}">${escapeHtml(term)}</span>
-      <span class="tc-remove" title="Entfernen" onclick="removeCustomTerm(${i})">
-        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
-          <line x1="18" y1="6" x2="6" y2="18"></line>
-          <line x1="6" y1="6" x2="18" y2="18"></line>
-        </svg>
-      </span>
+    const row = document.createElement('div');
+    row.className = 'term-chip term-chip-row';
+    row.innerHTML = `
+      <div style="display:flex; align-items:center; gap:6px; width:100%;">
+        <span title="${escapeHtml(term.text)}" style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(term.text)}</span>
+        <span class="tc-remove" title="Entfernen" onclick="removeCustomTerm(${i})">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </span>
+      </div>
+      <input type="text" class="tc-placeholder-input" placeholder="Platzhalter (optional), z.B. [PERSON]"
+        value="${escapeHtml(term.replacement || '')}"
+        oninput="setCustomTermReplacement(${i}, this.value)">
     `;
-    container.appendChild(chip);
+    container.appendChild(row);
   });
+}
+
+function setCustomTermReplacement(index, value) {
+  if (!customTerms[index]) return;
+  customTerms[index].replacement = value;
+  saveCustomTermsToStorage();
+  // Falls der Begriff bereits geschwärzt im Dokument steht, Platzhalter live nachziehen
+  if (isEditorMode) applyCustomTermPlaceholders();
 }
 
 function addCustomTerm() {
@@ -1399,14 +1608,14 @@ function addCustomTerm() {
   const value = input.value.trim();
   if (!value) return;
 
-  const exists = customTerms.some(t => t.toLowerCase() === value.toLowerCase());
+  const exists = customTerms.some(t => t.text.toLowerCase() === value.toLowerCase());
   if (exists) {
     showToast('Begriff ist bereits in der Liste.', 'info');
     input.value = '';
     return;
   }
 
-  customTerms.push(value);
+  customTerms.push({ text: value, replacement: '' });
   saveCustomTermsToStorage();
   renderCustomTermsList();
   input.value = '';
@@ -1439,10 +1648,29 @@ function markCustomTermSuggestions() {
   const wordIndices = tokens.map((t, i) => i).filter(i => tokens[i].type === 'word');
 
   customTerms.forEach(term => {
-    const termWords = term.trim().split(/\s+/).filter(Boolean);
+    const termWords = term.text.trim().split(/\s+/).filter(Boolean);
     if (termWords.length === 0) return;
     forEachTermMatch(wordIndices, termWords, (idxArray) => {
       idxArray.forEach(idx => { if (!tokens[idx].redacted) tokens[idx].suggested = true; });
+    });
+  });
+}
+
+// Trägt für bereits geschwärzte Vorkommen eigener Begriffe den (ggf. geänderten)
+// Platzhaltertext in tokenPlaceholder ein und aktualisiert die Anzeige live.
+function applyCustomTermPlaceholders() {
+  const wordIndices = tokens.map((t, i) => i).filter(i => tokens[i].type === 'word');
+  customTerms.forEach(term => {
+    const termWords = term.text.trim().split(/\s+/).filter(Boolean);
+    if (termWords.length === 0) return;
+    forEachTermMatch(wordIndices, termWords, (idxArray) => {
+      idxArray.forEach(idx => {
+        const tok = tokens[idx];
+        if (!tok.redacted) return;
+        if (term.replacement && term.replacement.trim()) tokenPlaceholder.set(tok.id, term.replacement.trim());
+        else tokenPlaceholder.delete(tok.id);
+        updateTokenSpanClass(tok);
+      });
     });
   });
 }
@@ -1483,18 +1711,23 @@ function redactCustomTerms() {
   const wordIndices = tokens.map((t, i) => i).filter(i => tokens[i].type === 'word');
 
   customTerms.forEach(term => {
-    const termWords = term.trim().split(/\s+/).filter(Boolean);
+    const termWords = term.text.trim().split(/\s+/).filter(Boolean);
     if (termWords.length === 0) return;
+    const hasReplacement = term.replacement && term.replacement.trim();
+    let termMatched = false;
     forEachTermMatch(wordIndices, termWords, (idxArray) => {
       idxArray.forEach(idx => {
         if (!tokens[idx].redacted) {
           tokens[idx].redacted = true;
           tokens[idx].suggested = false;
+          if (hasReplacement) tokenPlaceholder.set(tokens[idx].id, term.replacement.trim());
           updateTokenSpanClass(tokens[idx]);
           count++;
+          termMatched = true;
         }
       });
     });
+    if (termMatched) learnTerm(term.text);
   });
 
   refreshEditorUI();
@@ -1527,6 +1760,7 @@ function undo() {
 function clearAll() {
   saveHistory('Alle aufheben');
   tokens.forEach(t => { t.redacted = false; t.suggested = false; });
+  tokenPlaceholder.clear();
   renderEditor();
   showToast('Alle Schwärzungen aufgehoben.', 'eraser');
 }
@@ -1534,12 +1768,18 @@ function clearAll() {
 // ===========================
 // EXPORT: TEXT
 // ===========================
-function getProcessedText(placeholder = '[ANONYMISIERT]') {
-  return tokens.map(t => t.redacted ? placeholder : t.text).join('');
+// fallbackOverride: optionaler Platzhalter, der statt defaultPlaceholder verwendet
+// wird, wenn für ein Token kein eigener (Begriffs-/Kandidaten-)Platzhalter gesetzt ist.
+function getProcessedText(fallbackOverride) {
+  const fallback = fallbackOverride || defaultPlaceholder;
+  return tokens.map(t => {
+    if (!t.redacted) return t.text;
+    return tokenPlaceholder.get(t.id) || fallback;
+  }).join('');
 }
 
 function copyText() {
-  const text = getProcessedText('[ANONYMISIERT]');
+  const text = getProcessedText();
   navigator.clipboard.writeText(text).then(() => {
     showToast('Text kopiert!', 'clipboard-copy');
   });
@@ -1553,7 +1793,7 @@ function copyTextXXX() {
 }
 
 function downloadTxt() {
-  const text = getProcessedText('[ANONYMISIERT]');
+  const text = getProcessedText();
   const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -1562,6 +1802,31 @@ function downloadTxt() {
   a.click();
   URL.revokeObjectURL(url);
   showToast('Datei wird heruntergeladen.', 'download');
+}
+
+// Globalen Standard-Platzhalter setzen (für alle Tokens ohne eigenen Begriffs-Platzhalter)
+function setDefaultPlaceholder(value) {
+  defaultPlaceholder = value.trim() || '[ANONYMISIERT]';
+  try { localStorage.setItem('redactomat_default_placeholder', defaultPlaceholder); } catch (e) {}
+  if (isEditorMode && viewMode === 'replaced') {
+    tokens.forEach(t => { if (t.type === 'word' && t.redacted) updateTokenSpanClass(t); });
+  }
+}
+
+// Lädt das komplette aktuelle Wörterbuch (dictionary.json-Basis + automatisch
+// gelernte Begriffe) als Datei herunter — damit lässt sich die eigene
+// dictionary.json dauerhaft aktualisieren (echtes Zurückschreiben auf die
+// Festplatte ist aus dem Browser heraus aus Sicherheitsgründen nicht möglich).
+function downloadDictionary() {
+  const merged = [...new Set(dictionaryTerms)].sort((a, b) => a.localeCompare(b, 'de'));
+  const blob = new Blob([JSON.stringify(merged, null, 2)], { type: 'application/json;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'dictionary.json';
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast(`Wörterbuch mit ${merged.length} Begriffen wird heruntergeladen.`, 'download');
 }
 
 // ===========================
@@ -1755,6 +2020,7 @@ function resetToInput() {
   rebuildTokenIndex();
   history = [];
   candidates = [];
+  tokenPlaceholder.clear();
   document.getElementById('inputTextarea').style.display = 'block';
   document.getElementById('editorPane').style.display = 'none';
   document.getElementById('inputToolbar').style.display = 'flex';
