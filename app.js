@@ -1,1047 +1,3 @@
-<!DOCTYPE html>
-<html lang="de">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Redact-o-Mat — DSGVO Schwärzungstool</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,400;0,500;1,400&family=Syne:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<script src="https://cdn.tailwindcss.com"></script>
-<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
-<script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js"></script>
-<style>
-  :root {
-    --navy: #1E293B;
-    --navy-light: #334155;
-    --navy-faint: #E8EDF3;
-    --bg: #F8FAFC;
-    --amber: #D97706;
-    --amber-light: #FEF3C7;
-    --amber-border: #FCD34D;
-    --black-mark: #0F172A;
-    --green: #059669;
-    --green-light: #D1FAE5;
-    --red: #DC2626;
-  }
-
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-
-  body {
-    font-family: 'Syne', sans-serif;
-    background: var(--bg);
-    color: var(--navy);
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-  }
-
-  /* HEADER */
-  header {
-    background: var(--navy);
-    color: white;
-    padding: 0 2rem;
-    height: 56px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    border-bottom: 3px solid #0F172A;
-    position: sticky;
-    top: 0;
-    z-index: 100;
-    flex-shrink: 0;
-  }
-
-  .header-brand {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-
-  .brand-badge {
-    background: var(--amber);
-    color: white;
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 0.12em;
-    padding: 2px 7px;
-    border-radius: 2px;
-    text-transform: uppercase;
-  }
-
-  .header-brand h1 {
-    font-size: 18px;
-    font-weight: 800;
-    letter-spacing: -0.02em;
-    color: white;
-  }
-
-  .header-meta {
-    font-family: 'DM Mono', monospace;
-    font-size: 11px;
-    color: rgba(255,255,255,0.45);
-    letter-spacing: 0.05em;
-  }
-
-  /* LAYOUT */
-  .main-layout {
-    flex: 1;
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0;
-    min-height: calc(100vh - 56px);
-  }
-
-  .panel {
-    display: flex;
-    flex-direction: column;
-    border-right: 1px solid #CBD5E1;
-  }
-
-  .panel:last-child { border-right: none; }
-
-  .panel-header {
-    padding: 14px 20px 12px;
-    border-bottom: 1px solid #CBD5E1;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    background: white;
-    flex-shrink: 0;
-  }
-
-  .panel-header h2 {
-    font-size: 12px;
-    font-weight: 700;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: var(--navy-light);
-  }
-
-  .panel-icon {
-    color: var(--navy-light);
-    opacity: 0.7;
-  }
-
-  /* INPUT AREA */
-  #inputTextarea {
-    flex: 1;
-    resize: none;
-    border: none;
-    outline: none;
-    padding: 20px;
-    font-family: 'DM Mono', monospace;
-    font-size: 13.5px;
-    line-height: 1.8;
-    color: var(--navy);
-    background: transparent;
-    width: 100%;
-  }
-
-  #inputTextarea::placeholder {
-    color: #94A3B8;
-    font-style: italic;
-  }
-
-  #inputTextarea.drag-over {
-    background: var(--accent-light, #EEF2FF);
-    outline: 2px dashed var(--navy);
-    outline-offset: -8px;
-  }
-
-  .spinner {
-    width: 13px;
-    height: 13px;
-    border: 2px solid #CBD5E1;
-    border-top-color: var(--navy);
-    border-radius: 50%;
-    animation: spin 0.7s linear infinite;
-    flex-shrink: 0;
-  }
-  @keyframes spin { to { transform: rotate(360deg); } }
-
-  /* Unbestimmter Fortschrittsbalken (Analyse-Phase ohne echten %-Wert) —
-     ein wanderndes helles Segment statt eines festen Füllstands. */
-  #renderProgressBar.indeterminate {
-    width: 40% !important;
-    background: linear-gradient(90deg, transparent, var(--navy), transparent);
-    animation: indeterminate-slide 1.1s ease-in-out infinite;
-  }
-  @keyframes indeterminate-slide {
-    0%   { margin-left: -40%; }
-    100% { margin-left: 100%; }
-  }
-
-  .input-panel {
-    display: flex;
-    flex-direction: column;
-  }
-
-  .input-panel textarea {
-    min-height: 300px;
-  }
-
-  /* TOOLBAR */
-  .toolbar {
-    padding: 10px 16px;
-    border-top: 1px solid #E2E8F0;
-    background: white;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
-    flex-shrink: 0;
-  }
-
-  .btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 6px 12px;
-    border-radius: 4px;
-    font-family: 'Syne', sans-serif;
-    font-size: 12px;
-    font-weight: 600;
-    letter-spacing: 0.02em;
-    cursor: pointer;
-    transition: all 0.15s ease;
-    border: 1.5px solid transparent;
-    white-space: nowrap;
-  }
-
-  .btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
-  .btn-primary {
-    background: var(--navy);
-    color: white;
-    border-color: var(--navy);
-  }
-  .btn-primary:hover { background: var(--navy-light); border-color: var(--navy-light); }
-
-  .btn-ghost {
-    background: transparent;
-    color: var(--navy-light);
-    border-color: #CBD5E1;
-  }
-  .btn-ghost:hover { background: var(--navy-faint); border-color: var(--navy-light); }
-
-  .btn-amber {
-    background: var(--amber-light);
-    color: var(--amber);
-    border-color: var(--amber-border);
-  }
-  .btn-amber:hover { background: #FDE68A; }
-
-  .btn-danger {
-    background: #FEE2E2;
-    color: var(--red);
-    border-color: #FECACA;
-  }
-  .btn-danger:hover { background: #FCA5A5; }
-
-  .btn-success {
-    background: var(--green-light);
-    color: var(--green);
-    border-color: #6EE7B7;
-  }
-  .btn-success:hover { background: #A7F3D0; }
-
-  .btn-icon {
-    padding: 6px;
-    border-radius: 4px;
-  }
-
-  .separator {
-    width: 1px;
-    height: 24px;
-    background: #E2E8F0;
-    margin: 0 2px;
-  }
-
-  /* EDITOR */
-  #editorPane {
-    flex: 1;
-    overflow-y: auto;
-    padding: 20px;
-    font-family: 'DM Mono', monospace;
-    font-size: 13.5px;
-    line-height: 1.95;
-    color: var(--navy);
-    user-select: none;
-    cursor: default;
-    word-break: break-word;
-    min-height: 300px;
-  }
-
-  .token-chunk {
-    display: block;
-  }
-
-  .empty-state {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    height: 100%;
-    color: #94A3B8;
-    text-align: center;
-    gap: 12px;
-    min-height: 200px;
-  }
-
-  .empty-state svg { opacity: 0.3; }
-  .empty-state p { font-size: 13px; line-height: 1.6; max-width: 240px; }
-
-  /* TOKENS */
-  .token {
-    display: inline;
-    border-radius: 2px;
-    cursor: pointer;
-    transition: background 0.1s ease;
-    padding: 1px 0;
-    position: relative;
-  }
-
-  .token:hover {
-    background: rgba(30, 41, 59, 0.08);
-  }
-
-  .token.redacted {
-    background: var(--black-mark) !important;
-    color: var(--black-mark) !important;
-    border-radius: 3px;
-    cursor: pointer;
-    user-select: none;
-  }
-
-  .token.replaced {
-    background: var(--green-light) !important;
-    color: var(--green) !important;
-    border: 1px solid #A7F3D0;
-    border-radius: 3px;
-    padding: 1px 5px;
-    font-weight: 600;
-    font-family: 'DM Mono', monospace;
-    font-size: 0.92em;
-    cursor: pointer;
-    user-select: none;
-  }
-
-  /* Teil eines mehrwortigen Platzhalter-Blocks (z.B. "12" in "Musterstraße 12") —
-     unsichtbar, damit der Platzhalter nur einmal für die ganze Phrase erscheint. */
-  .token.replaced-continuation {
-    display: none;
-  }
-  .token.whitespace.hidden-connector {
-    display: none;
-  }
-
-  .view-toggle-btn.active {
-    background: var(--navy);
-    color: white;
-    border-color: var(--navy);
-  }
-
-  .token.suggested {
-    background: var(--amber-light);
-    outline: 1.5px dashed var(--amber-border);
-    outline-offset: 1px;
-    border-radius: 2px;
-  }
-
-  .token.suggested:hover {
-    background: #FDE68A;
-  }
-
-  .token-legend {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 16px;
-    padding: 8px 12px;
-    margin-top: 6px;
-    background: #FAFAF7;
-    border: 1px solid #E2E8F0;
-    border-radius: 4px;
-    font-size: 11px;
-    color: #64748B;
-  }
-  .legend-item {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    white-space: nowrap;
-  }
-  .legend-hint {
-    color: #94A3B8;
-    font-weight: 400;
-  }
-  .legend-swatch {
-    width: 13px;
-    height: 13px;
-    border-radius: 3px;
-    flex-shrink: 0;
-  }
-  .legend-redacted {
-    background: var(--black-mark);
-  }
-  .legend-suggested {
-    background: var(--amber-light);
-    outline: 1.5px dashed var(--amber-border);
-    outline-offset: 1px;
-  }
-  .legend-replaced {
-    background: var(--green-light);
-    border: 1px solid #A7F3D0;
-  }
-
-  .token.whitespace {
-    cursor: default;
-  }
-  .token.whitespace:hover { background: transparent; }
-
-  .token.newline {
-    display: block;
-    height: 0;
-    cursor: default;
-  }
-  .token.newline:hover { background: transparent; }
-
-  /* SELECTION highlight */
-  .token.in-selection {
-    background: rgba(30, 41, 59, 0.15) !important;
-  }
-
-  /* STATS BAR */
-  .stats-bar {
-    padding: 8px 20px;
-    border-top: 1px solid #E2E8F0;
-    background: #F1F5F9;
-    display: flex;
-    gap: 20px;
-    font-family: 'DM Mono', monospace;
-    font-size: 11px;
-    color: #64748B;
-    flex-shrink: 0;
-  }
-
-  .stat { display: flex; align-items: center; gap: 5px; }
-  .stat-dot { width: 7px; height: 7px; border-radius: 50%; }
-  .stat-dot.red { background: var(--red); }
-  .stat-dot.amber { background: var(--amber); }
-
-  /* TOAST */
-  #toast {
-    position: fixed;
-    bottom: 24px;
-    left: 50%;
-    transform: translateX(-50%) translateY(60px);
-    background: var(--navy);
-    color: white;
-    padding: 10px 18px;
-    border-radius: 6px;
-    font-size: 13px;
-    font-weight: 600;
-    z-index: 1000;
-    transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.25s ease;
-    opacity: 0;
-    pointer-events: none;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    box-shadow: 0 8px 24px rgba(15,23,42,0.35);
-  }
-  #toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
-
-  /* SHORTCUT HINTS */
-  .shortcut-hint {
-    font-family: 'DM Mono', monospace;
-    font-size: 10px;
-    background: #E2E8F0;
-    color: #64748B;
-    padding: 1px 5px;
-    border-radius: 3px;
-    margin-left: 2px;
-  }
-
-  /* IMAGE EXPORT OVERLAY */
-  #exportOverlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(15,23,42,0.6);
-    z-index: 500;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.2s;
-  }
-  #exportOverlay.show { opacity: 1; pointer-events: all; }
-
-  .export-card {
-    background: white;
-    border-radius: 8px;
-    padding: 28px;
-    width: 360px;
-    box-shadow: 0 24px 64px rgba(15,23,42,0.3);
-  }
-  .export-card h3 { font-size: 16px; font-weight: 700; margin-bottom: 6px; }
-  .export-card p { font-size: 12px; color: #64748B; margin-bottom: 20px; line-height: 1.6; }
-  .export-card .btn-row { display: flex; gap: 10px; justify-content: flex-end; }
-
-  /* RIGHT PANEL */
-  .right-panel {
-    display: flex;
-    flex-direction: column;
-  }
-
-  .action-section {
-    padding: 16px 20px;
-    border-bottom: 1px solid #E2E8F0;
-    background: white;
-    flex-shrink: 0;
-  }
-
-  .action-section h3 {
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: #94A3B8;
-    margin-bottom: 10px;
-  }
-
-  .action-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
-  }
-
-  .action-btn-large {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 4px;
-    padding: 12px 14px;
-    border-radius: 6px;
-    border: 1.5px solid #E2E8F0;
-    background: white;
-    cursor: pointer;
-    transition: all 0.15s;
-    text-align: left;
-  }
-  .action-btn-large:hover { border-color: var(--navy-light); background: var(--navy-faint); }
-  .action-btn-large .abl-title { font-size: 12px; font-weight: 700; color: var(--navy); }
-  .action-btn-large .abl-desc { font-size: 10px; color: #94A3B8; line-height: 1.4; }
-  .action-btn-large svg { color: var(--navy-light); margin-bottom: 4px; }
-
-  .auto-detect-section { flex-shrink: 0; }
-
-  .history-section {
-    flex: 1;
-    padding: 16px 20px;
-    overflow-y: auto;
-    background: #FAFAFA;
-  }
-  .history-section h3 {
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: #94A3B8;
-    margin-bottom: 10px;
-  }
-
-  .history-entry {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 6px 10px;
-    border-radius: 4px;
-    font-family: 'DM Mono', monospace;
-    font-size: 11px;
-    color: var(--navy);
-    border: 1px solid #E2E8F0;
-    background: white;
-    margin-bottom: 6px;
-  }
-  .history-entry .he-text {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    flex: 1;
-    max-width: 140px;
-  }
-  .history-entry .he-badge {
-    background: #0F172A;
-    color: white;
-    font-size: 9px;
-    padding: 1px 5px;
-    border-radius: 2px;
-    font-weight: 600;
-    flex-shrink: 0;
-  }
-  .history-entry .he-undo {
-    cursor: pointer;
-    color: #94A3B8;
-    margin-left: 6px;
-    flex-shrink: 0;
-  }
-  .history-entry .he-undo:hover { color: var(--red); }
-
-  .no-history {
-    font-size: 12px;
-    color: #CBD5E1;
-    text-align: center;
-    padding: 20px 0;
-    font-family: 'DM Mono', monospace;
-  }
-
-  .ner-status {
-    font-size: 10px;
-    line-height: 1;
-  }
-  .ner-status-unknown { color: #CBD5E1; }
-  .ner-status-ok { color: var(--green, #16A34A); }
-  .ner-status-error { color: var(--remove, #DC2626); }
-
-  /* CUSTOM TERM CHIPS */
-  .term-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 4px 6px 4px 10px;
-    border-radius: 20px;
-    background: var(--amber-light);
-    border: 1.5px solid var(--amber-border);
-    font-family: 'DM Mono', monospace;
-    font-size: 11.5px;
-    color: var(--amber);
-    max-width: 100%;
-  }
-  .term-chip-row {
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 5px;
-    width: 100%;
-    border-radius: 6px;
-    padding: 7px 9px;
-  }
-  .term-chip-row span { color: var(--navy); font-weight: 500; }
-  .tc-placeholder-input {
-    width: 100%;
-    padding: 5px 7px;
-    border: 1px solid var(--amber-border);
-    border-radius: 4px;
-    font-family: 'DM Mono', monospace;
-    font-size: 11px;
-    color: var(--navy);
-    background: white;
-    outline: none;
-  }
-  .tc-placeholder-input:focus { border-color: var(--navy); }
-  .tc-placeholder-input::placeholder { color: #B0AA9A; }
-  .tc-category-select {
-    padding: 5px 6px;
-    border: 1px solid var(--amber-border);
-    border-radius: 4px;
-    font-family: 'DM Mono', monospace;
-    font-size: 10.5px;
-    color: var(--navy);
-    background: white;
-    outline: none;
-    flex-shrink: 0;
-    max-width: 100px;
-  }
-  .tc-category-select:focus { border-color: var(--navy); }
-  .term-chip span {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    max-width: 150px;
-  }
-  .term-chip .tc-remove {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 16px;
-    height: 16px;
-    border-radius: 50%;
-    cursor: pointer;
-    color: var(--amber);
-    flex-shrink: 0;
-  }
-  .term-chip .tc-remove:hover {
-    background: var(--amber);
-    color: white;
-  }
-
-  /* CANDIDATE CHECKLIST */
-  .candidate-row-wrap {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-  .candidate-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 6px 8px;
-    border-radius: 4px;
-    border: 1px solid #E2E8F0;
-    background: white;
-  }
-  .candidate-row:hover { border-color: #CBD5E1; }
-  .candidate-check {
-    cursor: pointer;
-    flex-shrink: 0;
-    display: flex;
-  }
-  .cc-box {
-    width: 15px;
-    height: 15px;
-    border-radius: 3px;
-    border: 1.5px solid #CBD5E1;
-    background: white;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    position: relative;
-    transition: all 0.1s ease;
-  }
-  .candidate-check.checked .cc-box {
-    background: var(--black-mark);
-    border-color: var(--black-mark);
-  }
-  .candidate-check.checked .cc-box::after {
-    content: '';
-    position: absolute;
-    width: 4px;
-    height: 8px;
-    border: solid white;
-    border-width: 0 1.5px 1.5px 0;
-    transform: rotate(45deg) translate(-1px, -1px);
-  }
-  .candidate-check.partial .cc-box {
-    background: var(--amber-light);
-    border-color: var(--amber);
-  }
-  .candidate-check.partial .cc-box::after {
-    content: '';
-    width: 7px;
-    height: 1.5px;
-    background: var(--amber);
-  }
-  .candidate-text {
-    flex: 1;
-    font-family: 'DM Mono', monospace;
-    font-size: 12px;
-    color: var(--navy);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .candidate-count {
-    font-family: 'DM Mono', monospace;
-    font-size: 10px;
-    color: #94A3B8;
-    background: #F1F5F9;
-    padding: 1px 6px;
-    border-radius: 10px;
-    flex-shrink: 0;
-  }
-
-  /* PROGRESS BAR */
-  .redaction-meter {
-    height: 3px;
-    background: #E2E8F0;
-    position: relative;
-    flex-shrink: 0;
-  }
-  .redaction-meter-fill {
-    height: 100%;
-    background: linear-gradient(90deg, var(--amber), var(--red));
-    transition: width 0.3s ease;
-    border-radius: 0 2px 2px 0;
-  }
-
-  /* SCROLLBAR */
-  ::-webkit-scrollbar { width: 6px; height: 6px; }
-  ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 3px; }
-  ::-webkit-scrollbar-thumb:hover { background: #94A3B8; }
-
-  /* RESPONSIVE */
-  @media (max-width: 768px) {
-    .main-layout { grid-template-columns: 1fr; }
-    .panel { border-right: none; border-bottom: 1px solid #CBD5E1; }
-    .action-grid { grid-template-columns: 1fr; }
-  }
-
-  /* ANIMATION */
-  @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
-  .token { animation: fadeIn 0.15s ease forwards; }
-
-  /* DSGVO badge pulse */
-  @keyframes pulse-amber {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(217, 119, 6, 0.4); }
-    50% { box-shadow: 0 0 0 5px rgba(217, 119, 6, 0); }
-  }
-  .brand-badge { animation: pulse-amber 3s infinite; }
-</style>
-</head>
-<body>
-
-<!-- HEADER -->
-<header>
-  <div class="header-brand">
-    <span class="brand-badge">DSGVO</span>
-    <h1>Redact-o-Mat</h1>
-  </div>
-  <div class="header-meta">100% CLIENT-SEITIG · KEINE DATENÜBERTRAGUNG · v1.0</div>
-</header>
-
-<!-- MAIN -->
-<div class="main-layout">
-
-  <!-- LEFT PANEL: INPUT + EDITOR -->
-  <div class="panel input-panel">
-    <div class="panel-header">
-      <i data-lucide="file-text" size="14" class="panel-icon"></i>
-      <h2 id="panelTitle">Texteingabe</h2>
-    </div>
-
-    <!-- INPUT TEXTAREA -->
-    <textarea id="inputTextarea"
-      placeholder="Fügen Sie hier den zu schwärzenden Text ein…&#10;&#10;Beispiel: Max Mustermann, geboren am 01.01.1980, wohnhaft in der Musterstraße 12, hat per E-Mail an max@example.de eine Anfrage gestellt.&#10;&#10;Klicken Sie auf „Analyse starten", um den Schwärzungs-Editor zu öffnen."></textarea>
-
-    <!-- EDITOR PANE (hidden initially) -->
-    <div id="editorPane" style="display:none;">
-      <div class="empty-state" id="editorEmpty">
-        <i data-lucide="mouse-pointer-click" size="32"></i>
-        <p>Editor bereit. Klicken Sie Wörter an, um sie zu schwärzen.</p>
-      </div>
-    </div>
-
-    <!-- Fortschrittsanzeige für sehr große Dokumente (schrittweises Rendern) -->
-    <div id="renderProgress" style="display:none; flex-direction:column; gap:6px; padding:10px 12px; background:#F1F5F9; border-radius:4px; margin-top:8px;">
-      <div style="display:flex; align-items:center; gap:8px; font-size:12px; color:var(--navy);">
-        <div class="spinner"></div>
-        <span id="renderProgressText">Text wird angezeigt …</span>
-      </div>
-      <div style="height:4px; background:#E2E8F0; border-radius:2px; overflow:hidden;">
-        <div id="renderProgressBar" style="height:100%; width:0%; background:var(--navy); transition:width 0.1s linear;"></div>
-      </div>
-    </div>
-
-    <div class="redaction-meter" id="meterBar" style="display:none;">
-      <div class="redaction-meter-fill" id="meterFill" style="width:0%"></div>
-    </div>
-
-    <!-- TOOLBAR -->
-    <div class="toolbar" id="inputToolbar">
-      <button class="btn btn-primary" id="btnAnalyze" onclick="startAnalysis()">
-        <i data-lucide="zap" size="13"></i> Analyse starten
-      </button>
-      <button class="btn btn-ghost" id="btnUpload" onclick="document.getElementById('fileUploadInput').click()">
-        <i data-lucide="upload" size="13"></i> Datei hochladen
-        <span class="shortcut-hint">.txt / .docx</span>
-      </button>
-      <input type="file" id="fileUploadInput" accept=".txt,.docx,text/plain" style="display:none;" onchange="handleFileUpload(this.files)">
-    </div>
-
-    <div id="uploadStatus" style="display:none; align-items:center; gap:8px; padding:8px 10px; margin-top:8px; background:#F1F5F9; border-radius:4px; font-size:12px; color:var(--navy);">
-      <div class="spinner"></div>
-      <span id="uploadStatusText">Datei wird gelesen …</span>
-    </div>
-
-    <div class="toolbar" id="editorToolbar" style="display:none;">
-      <button class="btn btn-ghost" id="btnUndo" onclick="undo()">
-        <i data-lucide="undo-2" size="13"></i> Rückgängig
-        <span class="shortcut-hint">Strg+Z</span>
-      </button>
-      <div class="separator"></div>
-      <button class="btn btn-ghost view-toggle-btn active" id="btnViewRedacted" onclick="setViewMode('redacted')" title="Geschwärzte Wörter als schwarzen Balken anzeigen">
-        <i data-lucide="square" size="13"></i> Schwärzen
-      </button>
-      <button class="btn btn-ghost view-toggle-btn" id="btnViewReplaced" onclick="setViewMode('replaced')" title="Geschwärzte Wörter als Platzhaltertext anzeigen">
-        <i data-lucide="type" size="13"></i> Ersetzen
-      </button>
-      <div class="separator"></div>
-      <button class="btn btn-danger" onclick="clearAll()">
-        <i data-lucide="eraser" size="13"></i> Alle aufheben
-      </button>
-      <button class="btn btn-ghost" onclick="resetToInput()">
-        <i data-lucide="edit-3" size="13"></i> Text ändern
-      </button>
-    </div>
-
-    <!-- LEGENDE: erklärt die drei Zustände eindeutig -->
-    <div class="token-legend" id="tokenLegend" style="display:none;">
-      <span class="legend-item">
-        <span class="legend-swatch legend-redacted"></span>
-        Geschwärzt <span class="legend-hint">— wird im Export als Platzhalter ausgegeben</span>
-      </span>
-      <span class="legend-item">
-        <span class="legend-swatch legend-suggested"></span>
-        Vorschlag <span class="legend-hint">— noch NICHT geschwärzt, nur erkannt</span>
-      </span>
-      <span class="legend-item">
-        <span class="legend-swatch legend-replaced"></span>
-        Ersetzt-Ansicht <span class="legend-hint">— zeigt den zugewiesenen Platzhalter statt Balken</span>
-      </span>
-    </div>
-
-    <!-- STATS BAR -->
-    <div class="stats-bar" id="statsBar" style="display:none;">
-      <div class="stat">
-        <div class="stat-dot" style="background:#CBD5E1"></div>
-        <span id="statTotal">0 Token</span>
-      </div>
-      <div class="stat">
-        <div class="stat-dot red"></div>
-        <span id="statRedacted">0 geschwärzt</span>
-      </div>
-      <div class="stat">
-        <div class="stat-dot amber"></div>
-        <span id="statSuggested">0 Vorschläge</span>
-      </div>
-    </div>
-  </div>
-
-  <!-- RIGHT PANEL: ACTIONS -->
-  <div class="panel right-panel">
-    <div class="panel-header">
-      <i data-lucide="settings-2" size="14" class="panel-icon"></i>
-      <h2>Aktionen & Export</h2>
-    </div>
-
-    <!-- AUTO DETECT -->
-    <div class="action-section auto-detect-section">
-      <h3>Erkannte Kandidaten</h3>
-      <p style="font-size:11px; color:#94A3B8; margin-bottom:8px; line-height:1.5;">
-        Automatisch gefundene Datums-, E-Mail- und Namensmuster. Ein Klick schwärzt/entschwärzt <strong>alle</strong> Vorkommen im Dokument.
-      </p>
-      <label style="display:flex; align-items:center; gap:7px; font-size:11.5px; color:var(--navy); margin-bottom:10px; padding:6px 8px; background:#F1F5F9; border-radius:4px; cursor:pointer;">
-        <input type="checkbox" id="nerToggle" onchange="onNerToggle(this.checked)" style="margin:0;">
-        <span style="flex:1;">Python-NER-Server für Namenserkennung nutzen</span>
-        <span id="nerStatus" class="ner-status ner-status-unknown" title="Serverstatus">●</span>
-      </label>
-      <div id="nerLoadingRow" style="display:none; align-items:center; gap:8px; padding:6px 8px; margin:-4px 0 10px; font-size:11.5px; color:var(--navy);">
-        <div class="spinner"></div>
-        <span>NER-Server durchsucht den Text nach weiteren Namen …</span>
-      </div>
-      <div style="display:flex; gap:8px; margin-bottom:10px;">
-        <button class="btn btn-ghost" style="flex:1; justify-content:center;" onclick="toggleAllCandidates(true)">
-          <i data-lucide="check-square" size="13"></i> Alle schwärzen
-        </button>
-        <button class="btn btn-ghost" style="flex:1; justify-content:center;" onclick="toggleAllCandidates(false)">
-          <i data-lucide="square" size="13"></i> Alle aufheben
-        </button>
-      </div>
-      <div id="candidatesList" style="display:flex; flex-direction:column; gap:5px; max-height:240px; overflow-y:auto;">
-        <p class="no-history" style="width:100%; padding:6px 0;">Noch keine Analyse durchgeführt</p>
-      </div>
-    </div>
-
-    <!-- CUSTOM TERMS -->
-    <div class="action-section custom-terms-section">
-      <h3>Eigene Begriffe</h3>
-      <div style="display:flex; gap:6px; margin-bottom:10px;">
-        <input id="customTermInput" type="text" placeholder="z.B. Musterstraße, Firma XY…"
-          style="flex:1; padding:7px 9px; border:1.5px solid #CBD5E1; border-radius:4px; font-family:'DM Mono',monospace; font-size:12px; color:var(--navy); outline:none;"
-          onfocus="this.style.borderColor='var(--navy)'" onblur="this.style.borderColor='#CBD5E1'"
-          onkeydown="if(event.key==='Enter'){event.preventDefault(); addCustomTerm();}">
-        <button class="btn btn-ghost btn-icon" title="Begriff hinzufügen" onclick="addCustomTerm()">
-          <i data-lucide="plus" size="14"></i>
-        </button>
-      </div>
-      <div id="customTermsList" style="display:flex; flex-direction:column; gap:6px; margin-bottom:10px; max-height:280px; overflow-y:auto;">
-        <p class="no-history" style="width:100%; padding:6px 0;">Noch keine eigenen Begriffe</p>
-      </div>
-      <button class="btn btn-amber" style="width:100%; justify-content:center;" onclick="redactCustomTerms()">
-        <i data-lucide="target" size="13"></i> Eigene Begriffe schwärzen
-      </button>
-    </div>
-
-    <!-- EXPORT -->
-    <div class="action-section">
-      <h3>Export</h3>
-      <div style="margin-bottom:10px;">
-        <label style="font-size:11px; color:#94A3B8; display:block; margin-bottom:4px;">Not-Fallback (nur falls einem Token ausnahmsweise keine Kategorie zugeordnet werden kann)</label>
-        <input type="text" id="defaultPlaceholderInput" value="[ANONYMISIERT]"
-          style="width:100%; padding:6px 8px; border:1.5px solid #CBD5E1; border-radius:4px; font-family:'DM Mono',monospace; font-size:12px; color:var(--navy); outline:none;"
-          onfocus="this.style.borderColor='var(--navy)'" onblur="this.style.borderColor='#CBD5E1'"
-          oninput="setDefaultPlaceholder(this.value)">
-      </div>
-      <div class="action-grid">
-        <button class="action-btn-large" onclick="copyText()">
-          <i data-lucide="clipboard-copy" size="18"></i>
-          <div class="abl-title">Text kopieren</div>
-          <div class="abl-desc">Mit Platzhaltern statt Original<br><span class="shortcut-hint">Strg+C</span></div>
-        </button>
-        <button class="action-btn-large" onclick="showExportOverlay()">
-          <i data-lucide="file-down" size="18"></i>
-          <div class="abl-title">Als PDF</div>
-          <div class="abl-desc">Professioneller PDF-Export mit echten Schwärzungsbalken</div>
-        </button>
-        <button class="action-btn-large" onclick="copyTextXXX()">
-          <i data-lucide="clipboard" size="18"></i>
-          <div class="abl-title">Mit [XXX]</div>
-          <div class="abl-desc">Alternative Platzhalter-Kennzeichnung</div>
-        </button>
-        <button class="action-btn-large" onclick="downloadTxt()">
-          <i data-lucide="download" size="18"></i>
-          <div class="abl-title">Als .txt</div>
-          <div class="abl-desc">Textdatei mit Platzhaltern herunterladen</div>
-        </button>
-        <button class="action-btn-large" onclick="downloadDictionary()">
-          <i data-lucide="book-open" size="18"></i>
-          <div class="abl-title">Wörterbuch sichern</div>
-          <div class="abl-desc">dictionary.json inkl. gelernter Begriffe herunterladen</div>
-        </button>
-      </div>
-    </div>
-
-    <!-- HISTORY -->
-    <div class="history-section">
-      <h3>Schwärzungsprotokoll</h3>
-      <div id="historyList"><p class="no-history">Noch keine Schwärzungen</p></div>
-    </div>
-  </div>
-</div>
-
-<!-- EXPORT OVERLAY -->
-<div id="exportOverlay">
-  <div class="export-card">
-    <h3>PDF exportieren</h3>
-    <p>Erzeugt ein PDF-Dokument mit echten schwarzen Schwärzungsbalken (keine Metadaten des Originaltexts in den geschwärzten Bereichen). Kann direkt archiviert oder weitergegeben werden.</p>
-    <div style="margin-bottom:16px;">
-      <label style="font-size:12px; font-weight:600; color:var(--navy-light); display:block; margin-bottom:6px;">Dokumenttitel (optional)</label>
-      <input id="pdfTitle" type="text" placeholder="z.B. Bescheid vom 24.02.2026"
-        style="width:100%; padding:8px 10px; border:1.5px solid #CBD5E1; border-radius:4px; font-family:'DM Mono',monospace; font-size:12px; color:var(--navy); outline:none;"
-        onfocus="this.style.borderColor='var(--navy)'" onblur="this.style.borderColor='#CBD5E1'">
-    </div>
-    <div class="btn-row">
-      <button class="btn btn-ghost" onclick="hideExportOverlay()">Abbrechen</button>
-      <button class="btn btn-primary" onclick="exportPDF()" id="btnExportPDF">
-        <i data-lucide="file-down" size="13"></i> PDF erstellen
-      </button>
-    </div>
-  </div>
-</div>
-
-<!-- TOAST -->
-<div id="toast">
-  <i data-lucide="check-circle" size="16"></i>
-  <span id="toastMsg">Kopiert!</span>
-</div>
-
-<script>
 // ===========================
 // STATE
 // ===========================
@@ -1057,49 +13,8 @@ let dictionaryTerms = []; // flat list of names/terms loaded from dictionary.jso
 let dictionaryLoadPromise = null;
 let viewMode = 'redacted'; // 'redacted' = schwarzer Balken, 'replaced' = Platzhaltertext anzeigen
 let tokenPlaceholder = new Map(); // tokenId -> spezifischer Platzhaltertext (von Begriff/Kandidat übernommen)
-let defaultPlaceholder = '[ANONYMISIERT]'; // Letzter Fallback, falls ein Token keiner Kategorie zugeordnet werden kann
+let defaultPlaceholder = '[ANONYMISIERT]'; // Fallback-Platzhalter für Tokens ohne eigenen Begriff
 let learnedTerms = new Set(); // Begriffe, die durch Schwärzen automatisch "gelernt" wurden
-
-// ---------------------------
-// Kategorie-basierte, konsistente Nummerierung (PERSON 1, PERSON 2, ADRESSE 1, …)
-// Gilt bewusst nur PRO DOKUMENT — wird bei jeder neuen Analyse zurückgesetzt.
-// ---------------------------
-const CATEGORY_OPTIONS = ['PERSON', 'ADRESSE', 'E-MAIL', 'TELEFON', 'IBAN', 'DATUM', 'SONSTIGES'];
-const CANDIDATE_CATEGORY_MAP = {
-  name: 'PERSON', address: 'ADRESSE', email: 'E-MAIL',
-  phone: 'TELEFON', iban: 'IBAN', date: 'DATUM'
-};
-let categoryCounters = {};    // z.B. { PERSON: 2, ADRESSE: 1 }
-let categoryAssignments = new Map(); // "KATEGORIE|normalisierter text" -> "[KATEGORIE N]"
-
-function resetCategoryNumbering() {
-  categoryCounters = {};
-  categoryAssignments = new Map();
-}
-
-// Weist einem Begriff (falls noch nicht geschehen) die nächste freie Nummer
-// seiner Kategorie zu und liefert sie zurück. Gleicher Text + gleiche
-// Kategorie => immer dasselbe Label, auch bei mehrfachem Aufruf.
-function getAutoLabel(category, text) {
-  const cat = category || 'SONSTIGES';
-  const key = cat + '|' + String(text).trim().toLowerCase();
-  if (categoryAssignments.has(key)) return categoryAssignments.get(key);
-  categoryCounters[cat] = (categoryCounters[cat] || 0) + 1;
-  const label = `[${cat} ${categoryCounters[cat]}]`;
-  categoryAssignments.set(key, label);
-  return label;
-}
-
-// Wie getAutoLabel, aber OHNE eine neue Nummer zu verbrauchen — für die
-// Vorschau im Platzhalter-Eingabefeld (ghost text), bevor tatsächlich
-// geschwärzt wurde.
-function peekAutoLabel(category, text) {
-  const cat = category || 'SONSTIGES';
-  const key = cat + '|' + String(text).trim().toLowerCase();
-  if (categoryAssignments.has(key)) return categoryAssignments.get(key);
-  const nextNum = (categoryCounters[cat] || 0) + 1;
-  return `[${cat} ${nextNum}]`;
-}
 
 // ---------------------------
 // Python-NER-Server (optional, siehe ner_server.py)
@@ -1404,14 +319,6 @@ function setupDragAndDrop() {
   });
 }
 
-// Wartet auf den nächsten tatsächlich gemalten Frame (doppeltes rAF ist der
-// zuverlässige Standard-Trick dafür) — sorgt dafür, dass die Ladeanzeige vom
-// Browser sichtbar gezeichnet wird, BEVOR die (ggf. kurz blockierende)
-// Tokenisierung/Mustererkennung startet.
-function nextFrame() {
-  return new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-}
-
 async function startAnalysis() {
   const text = document.getElementById('inputTextarea').value.trim();
   if (!text) {
@@ -1419,24 +326,9 @@ async function startAnalysis() {
     return;
   }
   if (dictionaryLoadPromise) await dictionaryLoadPromise;
-
-  const btn = document.getElementById('btnAnalyze');
-  if (btn) btn.disabled = true;
-  showAnalysisProgress('Text wird analysiert (Namen, Daten, E-Mails, Telefon, IBAN, Adressen) …');
-  await nextFrame();
-
-  const startedAt = (typeof performance !== 'undefined') ? performance.now() : Date.now();
-  tokenize(text); // Tokenisierung + alle Mustererkennungs-Detektoren
+  tokenize(text);
+  renderEditor();
   switchToEditorMode();
-
-  // Löst erst auf, wenn WIRKLICH alles fertig ist — inkl. eines eventuellen
-  // Chunk-Renderings bei großen Dokumenten (siehe renderEditor()).
-  await renderEditor();
-
-  hideAnalysisProgress();
-  if (btn) btn.disabled = false;
-  const seconds = (((typeof performance !== 'undefined') ? performance.now() : Date.now()) - startedAt) / 1000;
-  showToast(`Analyse abgeschlossen (${seconds.toFixed(1)}s, ${candidates.length} Kandidat${candidates.length === 1 ? '' : 'en'} gefunden).`, 'check-circle-2');
 
   // Läuft im Hintergrund weiter, blockiert die Oberfläche nicht — die schnelle
   // Heuristik ist sofort sichtbar, NER-Treffer ergänzen die Liste kurz danach.
@@ -1445,8 +337,6 @@ async function startAnalysis() {
 
 function tokenize(text) {
   tokens = [];
-  tokenPlaceholder.clear();
-  resetCategoryNumbering();
   let id = 0;
 
   // Split by word boundaries, preserving whitespace and newlines as tokens
@@ -1485,319 +375,65 @@ function suggestPatterns() {
 // ===========================
 // RENDER EDITOR
 // ===========================
-// Wie viele Tokens pro Frame verarbeitet werden, bevor dem Browser kurz
-// "Luft zum Atmen" gegeben wird. Zu klein = viele Frame-Wechsel (Overhead),
-// zu groß = einzelne Frames werden wieder spürbar ruckelig. 4000 ist ein
-// guter Mittelwert für normale Rechner.
-const RENDER_CHUNK_SIZE = 4000;
-let renderGeneration = 0; // verhindert, dass ein alter (abgebrochener) Chunk-Render nach einer neuen Analyse weiterläuft
-
-// ---------------------------------------------------------------
-// VIRTUELLES SCROLLEN (für sehr große Dokumente)
-// ---------------------------------------------------------------
-// Ab dieser Token-Anzahl bleibt das DOM auch NACH dem Laden riesig, wenn
-// alles auf einmal gerendert wird — Scrollen/Klicken wird spürbar ruckelig,
-// weil der Browser bei jeder Interaktion Layout für hunderttausende Elemente
-// berechnen muss. Ab hier wird nur noch der sichtbare Bereich (+Puffer)
-// tatsächlich als DOM erzeugt; der Rest sind leichte Platzhalter-Divs mit
-// geschätzter Höhe, die erst beim Heranscrollen "hydriert" werden.
-const VIRTUAL_SCROLL_THRESHOLD = 20000;
-const VIRTUAL_CHUNK_SIZE = 1500; // Tokens pro virtuellem Block
-let tokenChunks = [];            // [{ start, end, el, hydrated }]
-let virtualObserver = null;
-let estimatedTokenHeight = null; // px pro Token, wird nach der ersten Hydrierung verfeinert
-
-function teardownVirtualScroll() {
-  if (virtualObserver) {
-    virtualObserver.disconnect();
-    virtualObserver = null;
-  }
-  tokenChunks = [];
-}
-
-function setupVirtualScroll(pane) {
-  return new Promise((resolve) => {
-    tokenChunks = [];
-    const fragment = document.createDocumentFragment();
-    const n = tokens.length;
-    let start = 0;
-    while (start < n) {
-      const end = Math.min(start + VIRTUAL_CHUNK_SIZE, n);
-      const container = document.createElement('div');
-      container.className = 'token-chunk';
-      const estimate = estimatedTokenHeight
-        ? Math.ceil((end - start) * estimatedTokenHeight)
-        : Math.ceil((end - start) * 6.5); // grobe Erst-Schätzung, bis echte Werte vorliegen
-      container.style.minHeight = estimate + 'px';
-      const chunk = { start, end, el: container, hydrated: false };
-      tokenChunks.push(chunk);
-      fragment.appendChild(container);
-      start = end;
-    }
-    pane.appendChild(fragment);
-
-    if (typeof IntersectionObserver === 'undefined') {
-      // Fallback für Umgebungen ohne IntersectionObserver: alles normal rendern
-      tokenChunks.forEach(c => hydrateChunk(c));
-      finishRenderEditor();
-      resolve();
-      return;
-    }
-
-    virtualObserver = new IntersectionObserver((entries) => {
-      entries.forEach(entry => {
-        const chunk = tokenChunks.find(c => c.el === entry.target);
-        if (!chunk) return;
-        if (entry.isIntersecting) hydrateChunk(chunk);
-        else dehydrateChunk(chunk);
-      });
-    }, { root: pane, rootMargin: '1500px 0px 1500px 0px' });
-
-    tokenChunks.forEach(c => virtualObserver.observe(c.el));
-
-    // Die ersten Blöcke direkt hydrieren, damit beim "fertig"-Signal schon
-    // echter Inhalt sichtbar ist (der Observer feuert sonst erst 1 Frame später).
-    for (let i = 0; i < Math.min(3, tokenChunks.length); i++) hydrateChunk(tokenChunks[i]);
-
-    finishRenderEditor();
-    resolve();
-  });
-}
-
-function hydrateChunk(chunk) {
-  if (chunk.hydrated) return;
-  chunk.hydrated = true;
-  chunk.el.style.minHeight = '';
-  renderTokenRange(chunk.el, chunk.start, chunk.end);
-
-  // Höhenschätzung für noch nicht hydrierte Blöcke verfeinern (gleitender Mittelwert)
-  const measured = chunk.el.offsetHeight;
-  if (measured > 0) {
-    const perToken = measured / (chunk.end - chunk.start);
-    estimatedTokenHeight = estimatedTokenHeight ? (estimatedTokenHeight * 0.7 + perToken * 0.3) : perToken;
-  }
-}
-
-function dehydrateChunk(chunk) {
-  if (!chunk.hydrated) return;
-  const measured = chunk.el.offsetHeight;
-  chunk.hydrated = false;
-  for (let idx = chunk.start; idx < chunk.end; idx++) {
-    spanById.delete(tokens[idx].id);
-  }
-  chunk.el.innerHTML = '';
-  chunk.el.style.minHeight = (measured > 0 ? measured : Math.ceil((chunk.end - chunk.start) * (estimatedTokenHeight || 6.5))) + 'px';
-}
-
 function renderEditor() {
-  return new Promise((resolve) => {
-    const pane = document.getElementById('editorPane');
-    teardownVirtualScroll(); // alten Observer/Blöcke aus einem vorherigen Render immer zuerst abräumen
-    pane.innerHTML = '';
-    spanById = new Map();
-    renderGeneration++;
-    const myGeneration = renderGeneration;
+  const pane = document.getElementById('editorPane');
+  pane.innerHTML = '';
+  spanById = new Map();
 
-    if (tokens.length === 0) {
-      pane.innerHTML = '<div class="empty-state"><p>Kein Text vorhanden.</p></div>';
-      resolve();
-      return;
-    }
+  if (tokens.length === 0) {
+    pane.innerHTML = '<div class="empty-state"><p>Kein Text vorhanden.</p></div>';
+    return;
+  }
 
-    // Unter der Chunk-Schwelle: normaler, sofortiger Durchlauf (kein Overhead
-    // durch mehrere Frames nötig, bei kleinen/mittleren Texten unmerklich schnell).
-    if (tokens.length <= RENDER_CHUNK_SIZE) {
-      renderTokenRange(pane, 0, tokens.length);
-      finishRenderEditor();
-      resolve();
-      return;
-    }
-
-    // Sehr große Dokumente: virtuelles Scrollen — nur der sichtbare Bereich
-    // (+Puffer) wird tatsächlich als DOM erzeugt, der Rest sind leichte
-    // Platzhalter, die erst beim Heranscrollen "hydriert" werden. Das hält
-    // die Seite auch DAUERHAFT flüssig, nicht nur beim ersten Laden.
-    if (tokens.length > VIRTUAL_SCROLL_THRESHOLD) {
-      setupVirtualScroll(pane).then(resolve);
-      return;
-    }
-
-    // Mittelgroße Dokumente: in Häppchen rendern, damit der Haupt-Thread
-    // zwischendurch frei bleibt — verhindert, dass der Tab als "nicht
-    // reagierend" markiert wird. Am Ende ist trotzdem alles live im DOM.
-    let index = 0;
-    showRenderProgress(0, tokens.length);
-
-    function renderNextChunk() {
-      if (myGeneration !== renderGeneration) { resolve(); return; } // Analyse wurde inzwischen neu gestartet/abgebrochen
-      const end = Math.min(index + RENDER_CHUNK_SIZE, tokens.length);
-      renderTokenRange(pane, index, end);
-      index = end;
-      showRenderProgress(index, tokens.length);
-
-      if (index < tokens.length) {
-        requestAnimationFrame(renderNextChunk);
-      } else {
-        hideRenderProgress();
-        finishRenderEditor();
-        resolve();
-      }
-    }
-    requestAnimationFrame(renderNextChunk);
-  });
-}
-
-// Erzeugt die DOM-Spans für einen Token-Bereich [start, end) und hängt sie
-// als EIN DocumentFragment an (ein Reflow statt vieler Einzel-Appends).
-function renderTokenRange(pane, start, end) {
+  // DocumentFragment sammelt alle Knoten im Speicher und wird erst am Ende
+  // in einem Rutsch ins DOM eingehängt — vermeidet N einzelne Reflows.
   const fragment = document.createDocumentFragment();
-  for (let idx = start; idx < end; idx++) {
-    const tok = tokens[idx];
+
+  tokens.forEach((tok, idx) => {
     if (tok.type === 'newline') {
       fragment.appendChild(document.createElement('br'));
-      continue;
+      return;
     }
-    const span = document.createElement('span');
-    if (tok.type === 'word') {
-      span.dataset.id = tok.id;
-      span.dataset.idx = idx;
-    }
-    fragment.appendChild(span);
-    spanById.set(tok.id, span); // auch Whitespace-Spans, damit verbindende Leerzeichen
-                                 // bei zusammengehörigen Platzhalter-Blöcken ausgeblendet werden können
-    updateTokenSpanClass(tok); // setzt Klasse + Text passend zum aktuellen viewMode
-  }
-  pane.appendChild(fragment);
-}
 
-function finishRenderEditor() {
+    if (tok.type === 'whitespace') {
+      const span = document.createElement('span');
+      span.className = 'token whitespace';
+      span.textContent = tok.text;
+      fragment.appendChild(span);
+      return;
+    }
+
+    const span = document.createElement('span');
+    span.dataset.id = tok.id;
+    span.dataset.idx = idx;
+    // Klick-/Auswahl-Verhalten läuft über EINEN delegierten Listener auf
+    // dem Pane-Container (siehe setupEditorPaneEvents) statt 3 Listenern
+    // pro einzelnem Wort — bei großen Texten sonst ein Perf-Killer.
+    fragment.appendChild(span);
+    spanById.set(tok.id, span);
+    updateTokenSpanClass(tok); // setzt Klasse + Text passend zum aktuellen viewMode
+  });
+
+  pane.appendChild(fragment);
+
   updateStatsAndMeter();
   updateHistory();
   renderCandidatesList();
 }
 
-// Ladeanzeige für die Analyse-Phase (Tokenisierung + Mustererkennung) — läuft
-// aktuell NICHT in Blöcken, daher unbestimmter ("indeterminate") Balken statt
-// einer Prozentzahl. Sobald danach das Chunk-Rendering beginnt, übernimmt
-// showRenderProgress() denselben Container mit einem echten Fortschrittsbalken.
-function showAnalysisProgress(text) {
-  const el = document.getElementById('renderProgress');
-  if (!el) return;
-  el.style.display = 'flex';
-  document.getElementById('renderProgressText').textContent = text;
-  const bar = document.getElementById('renderProgressBar');
-  if (bar) { bar.style.width = '100%'; bar.classList.add('indeterminate'); }
-}
-
-function hideAnalysisProgress() {
-  const el = document.getElementById('renderProgress');
-  if (el) el.style.display = 'none';
-  const bar = document.getElementById('renderProgressBar');
-  if (bar) bar.classList.remove('indeterminate');
-}
-
-function showRenderProgress(done, total) {
-  const el = document.getElementById('renderProgress');
-  if (!el) return;
-  el.style.display = 'flex';
-  document.getElementById('renderProgressText').textContent =
-    `Text wird angezeigt … ${done.toLocaleString('de-DE')} / ${total.toLocaleString('de-DE')} Wörter`;
-  const bar = document.getElementById('renderProgressBar');
-  if (bar) {
-    bar.classList.remove('indeterminate'); // ab hier gibt es einen echten Prozentwert
-    bar.style.width = (total > 0 ? (done / total * 100) : 0) + '%';
-  }
-}
-
-function hideRenderProgress() {
-  const el = document.getElementById('renderProgress');
-  if (el) el.style.display = 'none';
-}
-
-
-// Liefert den Platzhalter eines Tokens, falls es ein geschwärztes Wort ist — sonst null.
-// (id === Array-Index gilt immer, da tokens nie umsortiert wird — daher O(1)-Zugriff.)
-function getRedactedPlaceholder(tok) {
-  if (!tok || tok.type !== 'word' || !tok.redacted) return null;
-  return tokenPlaceholder.get(tok.id) || defaultPlaceholder;
-}
-
-// Liefert das vorherige Wort-Token, ein einzelnes verbindendes Whitespace-
-// Token wird dabei übersprungen (Tokens wechseln sich strikt ab: Wort,
-// Leerzeichen, Wort, ... — nie zwei Leerzeichen-Tokens hintereinander).
-function getPrevWordToken(tok) {
-  const prev = tokens[tok.id - 1];
-  if (prev && prev.type === 'whitespace') return tokens[tok.id - 2];
-  return prev;
-}
-
-// Gehört dieses Wort-Token zu einem bereits weiter vorne begonnenen, gleich-
-// platzhalterigen Block (z.B. "Bergmann" in "Klaus Bergmann")? Dann wird sein
-// Platzhalter NICHT nochmal angezeigt.
-function isContinuationToken(tok) {
-  const ph = getRedactedPlaceholder(tok);
-  if (!ph) return false;
-  return getRedactedPlaceholder(getPrevWordToken(tok)) === ph;
-}
-
-// Soll dieses Whitespace-/Newline-Token (das zwei Wörter verbindet) in der
-// "Ersetzen"-Ansicht ausgeblendet werden, weil beide Nachbarn zum selben
-// Platzhalter-Block gehören?
-function shouldHideConnector(tok) {
-  if (tok.type !== 'whitespace') return false;
-  const prevPh = getRedactedPlaceholder(tokens[tok.id - 1]);
-  const nextPh = getRedactedPlaceholder(tokens[tok.id + 1]);
-  return prevPh !== null && prevPh === nextPh;
-}
-
 // Aktualisiert nur die CSS-Klasse (und ggf. den sichtbaren Text) eines
 // einzelnen Token-Spans, ohne das komplette Pane neu zu rendern. Für
 // Aktionen, die nur wenige Tokens betreffen (Klick, Kandidat togglen, …).
-// _skipNeighborRefresh: intern, verhindert Endlos-Rekursion bei der
-// Nachbar-Aktualisierung (siehe unten).
-function updateTokenSpanClass(tok, _skipNeighborRefresh) {
+function updateTokenSpanClass(tok) {
   const span = spanById.get(tok.id);
   if (!span) return;
 
-  if (tok.type === 'whitespace') {
-    if (viewMode === 'replaced' && shouldHideConnector(tok)) {
-      span.className = 'token whitespace hidden-connector';
-      span.textContent = '';
-    } else {
-      span.className = 'token whitespace';
-      span.textContent = tok.text;
-    }
-    return;
-  }
-
-  if (tok.type !== 'word') return;
-
   if (tok.redacted && viewMode === 'replaced') {
-    if (isContinuationToken(tok)) {
-      span.className = 'token replaced-continuation';
-      span.textContent = '';
-    } else {
-      span.className = 'token replaced';
-      span.textContent = tokenPlaceholder.get(tok.id) || defaultPlaceholder;
-      span.title = 'Ersetzt-Ansicht — Klick zeigt/versteckt wieder den Original-Balken';
-    }
+    span.className = 'token replaced';
+    span.textContent = tokenPlaceholder.get(tok.id) || defaultPlaceholder;
   } else {
     span.className = 'token' + (tok.redacted ? ' redacted' : (tok.suggested ? ' suggested' : ''));
     span.textContent = tok.text;
-    span.title = tok.redacted
-      ? 'Geschwärzt — Klicken zum Aufheben'
-      : (tok.suggested ? 'Vorschlag — noch nicht geschwärzt, klicken zum Schwärzen' : '');
-  }
-
-  // Das verbindende Leerzeichen davor sowie das nächste Wort-Token danach
-  // können sich durch diese Änderung im Gruppen-Status ändern (z.B. wenn ein
-  // Wort mitten in einer Phrase einzeln entschwärzt wird) — einmalig mit-
-  // aktualisieren, aber nicht rekursiv weiter kaskadieren.
-  if (!_skipNeighborRefresh) {
-    const prevTok = tokens[tok.id - 1];
-    if (prevTok && prevTok.type === 'whitespace') updateTokenSpanClass(prevTok, true);
-    const nextTok = tokens[tok.id + 1];
-    if (nextTok && nextTok.type === 'word') updateTokenSpanClass(nextTok, true);
   }
 }
 
@@ -1807,10 +443,7 @@ function setViewMode(mode) {
   viewMode = mode;
   document.getElementById('btnViewRedacted').classList.toggle('active', mode === 'redacted');
   document.getElementById('btnViewReplaced').classList.toggle('active', mode === 'replaced');
-  tokens.forEach(t => {
-    if (t.type === 'word' && t.redacted) updateTokenSpanClass(t, true);
-    else if (t.type === 'whitespace') updateTokenSpanClass(t, true);
-  });
+  tokens.forEach(t => { if (t.type === 'word' && t.redacted) updateTokenSpanClass(t); });
 }
 
 // Einmalig beim Laden der Seite registriert (siehe DOMContentLoaded):
@@ -1870,8 +503,7 @@ function toggleToken(id) {
   if (tok.redacted) {
     const clean = stripPunct(tok.text);
     learnTerm(clean);
-    const category = registerManualRedaction(clean);
-    tokenPlaceholder.set(tok.id, getAutoLabel(category, clean));
+    registerManualRedaction(clean);
   } else {
     tokenPlaceholder.delete(tok.id);
   }
@@ -1883,13 +515,11 @@ function redactRange(from, to) {
   saveHistory('Phrasenauswahl');
   let changed = false;
   const phraseWords = [];
-  const changedTokens = [];
   for (let i = from; i <= to; i++) {
     if (tokens[i] && tokens[i].type === 'word') {
       tokens[i].redacted = true;
       tokens[i].suggested = false;
       phraseWords.push(stripPunct(tokens[i].text));
-      changedTokens.push(tokens[i]);
       updateTokenSpanClass(tokens[i]);
       changed = true;
     }
@@ -1899,26 +529,22 @@ function redactRange(from, to) {
     // nicht als Einzelwörter — das entspricht eher dem, was tatsächlich markiert wurde.
     const phrase = phraseWords.filter(Boolean).join(' ');
     learnTerm(phrase);
-    const category = registerManualRedaction(phrase);
-    const label = getAutoLabel(category, phrase);
-    changedTokens.forEach(t => { tokenPlaceholder.set(t.id, label); updateTokenSpanClass(t); });
+    registerManualRedaction(phrase);
     refreshEditorUI();
   }
 }
 
-// Trägt einen manuell geschwärzten Begriff automatisch in "Eigene Begriffe" ein
-// (Standardkategorie: PERSON, über das Dropdown änderbar) — auch wenn der Begriff
+// Trägt einen manuell geschwärzten Begriff automatisch in "Eigene Begriffe" ein,
+// damit sofort ein Platzhalter dafür gesetzt werden kann — auch wenn der Begriff
 // vorher NICHT als Kandidat (Datum/E-Mail/Name) vorgeschlagen wurde.
-// Gibt die (bestehende oder neu gesetzte) Kategorie des Begriffs zurück.
 function registerManualRedaction(text) {
   const clean = String(text || '').trim();
-  if (!clean) return 'PERSON';
-  const existing = customTerms.find(t => t.text.toLowerCase() === clean.toLowerCase());
-  if (existing) return existing.category || 'PERSON';
-  customTerms.push({ text: clean, replacement: '', category: 'PERSON' });
+  if (!clean) return;
+  const exists = customTerms.some(t => t.text.toLowerCase() === clean.toLowerCase());
+  if (exists) return;
+  customTerms.push({ text: clean, replacement: '' });
   saveCustomTermsToStorage();
   renderCustomTermsList();
-  return 'PERSON';
 }
 
 // ===========================
@@ -1937,9 +563,6 @@ function detectCandidates() {
   const dateRx  = /^\d{1,2}\.\d{1,2}\.\d{2,4}$/;
   const emailRx = /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/;
   const map = new Map();
-  // Einmal zentral aufgebaut und an alle Sub-Detektoren durchgereicht,
-  // statt dass jeder Detektor separat nochmal komplett durch tokens läuft.
-  const wordIndices = tokens.map((t, i) => i).filter(i => tokens[i].type === 'word');
 
   tokens.forEach(tok => {
     if (tok.type !== 'word') return;
@@ -1957,12 +580,12 @@ function detectCandidates() {
     map.get(key).occurrences++;
   });
 
-  detectNameCandidates(map, wordIndices);
-  detectDictionaryCandidates(map, wordIndices);
-  detectWrittenDateCandidates(map, wordIndices);
-  detectPhoneCandidates(map, wordIndices);
-  detectIbanCandidates(map, wordIndices);
-  detectAddressCandidates(map, wordIndices);
+  detectNameCandidates(map);
+  detectDictionaryCandidates(map);
+  detectWrittenDateCandidates(map);
+  detectPhoneCandidates(map);
+  detectIbanCandidates(map);
+  detectAddressCandidates(map);
 
   candidates = Array.from(map.values()).sort((a, b) => {
     if (a.type !== b.type) return a.type.localeCompare(b.type);
@@ -2006,7 +629,8 @@ const MONTH_NAMES_DE = {
   'dezember': 12, 'dez': 12
 };
 
-function detectWrittenDateCandidates(map, wordIndices) {
+function detectWrittenDateCandidates(map) {
+  const wordIndices = tokens.map((t, i) => i).filter(i => tokens[i].type === 'word');
   const dayRx = /^\d{1,2}\.?$/;
   const yearRx = /^\d{4}$/;
 
@@ -2036,7 +660,7 @@ function detectWrittenDateCandidates(map, wordIndices) {
 
     const text = joinTokensCleanEnd(matchedIdx);
     addCandidate(map, 'date', matchedIdx, text);
-    i = nextWi - 1; // O(1): Position ist bereits bekannt, kein indexOf nötig
+    i = wordIndices.indexOf(matchedIdx[matchedIdx.length - 1]);
   }
 }
 
@@ -2046,7 +670,8 @@ function detectWrittenDateCandidates(map, wordIndices) {
 // ---------------------------
 const PHONE_SEGMENT_RX = /^[+]?[\d\-\/()]{2,}$/;
 
-function detectPhoneCandidates(map, wordIndices) {
+function detectPhoneCandidates(map) {
+  const wordIndices = tokens.map((t, i) => i).filter(i => tokens[i].type === 'word');
 
   for (let i = 0; i < wordIndices.length; i++) {
     if (!PHONE_SEGMENT_RX.test(tokens[wordIndices[i]].text)) continue;
@@ -2067,7 +692,7 @@ function detectPhoneCandidates(map, wordIndices) {
       const text = joinTokensCleanEnd(matchedIdx);
       addCandidate(map, 'phone', matchedIdx, text);
     }
-    i = wi - 1; // O(1): Position ist bereits bekannt, kein indexOf nötig
+    i = wordIndices.indexOf(matchedIdx[matchedIdx.length - 1]);
   }
 }
 
@@ -2082,7 +707,8 @@ const IBAN_DE_START_RX = /^DE\d{2}$/;
 const IBAN_DIGIT_GROUP_RX = /^\d{1,4}$/;
 const IBAN_DE_LENGTH = 22; // "DE" + 2 Prüfziffern + 18 Kontoziffern
 
-function detectIbanCandidates(map, wordIndices) {
+function detectIbanCandidates(map) {
+  const wordIndices = tokens.map((t, i) => i).filter(i => tokens[i].type === 'word');
 
   for (let i = 0; i < wordIndices.length; i++) {
     const idx = wordIndices[i];
@@ -2118,7 +744,7 @@ function detectIbanCandidates(map, wordIndices) {
       addCandidate(map, 'iban', matchedIdx, text);
     }
 
-    if (matched) i = wi - 1; // O(1): Position ist bereits bekannt, kein indexOf nötig
+    if (matched) i = wordIndices.indexOf(matchedIdx[matchedIdx.length - 1]);
   }
 }
 
@@ -2128,7 +754,8 @@ function detectIbanCandidates(map, wordIndices) {
 const STREET_SUFFIXES = ['straße', 'strasse', 'str', 'weg', 'allee', 'platz', 'gasse', 'ring', 'damm', 'ufer', 'steig', 'pfad'];
 const HOUSE_NUMBER_RX = /^\d{1,4}[a-zA-Z]?$/;
 
-function detectAddressCandidates(map, wordIndices) {
+function detectAddressCandidates(map) {
+  const wordIndices = tokens.map((t, i) => i).filter(i => tokens[i].type === 'word');
 
   for (let i = 0; i < wordIndices.length; i++) {
     const idx = wordIndices[i];
@@ -2144,15 +771,17 @@ function detectAddressCandidates(map, wordIndices) {
     const matchedIdx = [idx, numIdx];
     const text = joinTokensCleanEnd(matchedIdx);
     addCandidate(map, 'address', matchedIdx, text);
-    i = i + 1; // O(1): numIdx ist immer genau die nächste wordIndices-Position
+    i = wordIndices.indexOf(numIdx);
   }
 }
 
 // ---------------------------
 // Wörterbuch (dictionary.json) — flaches Array von Strings
 // ---------------------------
-function detectDictionaryCandidates(map, wordIndices) {
+function detectDictionaryCandidates(map) {
   if (!dictionaryIndex || dictionaryIndex.size === 0) return;
+
+  const wordIndices = tokens.map((t, i) => i).filter(i => tokens[i].type === 'word');
 
   for (let i = 0; i < wordIndices.length; i++) {
     const firstClean = stripPunct(tokens[wordIndices[i]].text).toLowerCase();
@@ -2210,8 +839,7 @@ function collectCapitalizedRun(wordIndices, startWi, maxWords) {
   let wi = startWi;
   while (wi < wordIndices.length && words.length < maxWords) {
     const idx = wordIndices[wi];
-    const rawText = tokens[idx].text;
-    const clean = stripPunct(rawText);
+    const clean = stripPunct(tokens[idx].text);
     if (!clean) break;
     const isCapitalized = /^\p{Lu}/u.test(clean);
 
@@ -2231,20 +859,13 @@ function collectCapitalizedRun(wordIndices, startWi, maxWords) {
     ids.push(idx);
     words.push(clean);
     wi++;
-
-    // Nach einem satzbeendenden Zeichen (Punkt/Ausrufe-/Fragezeichen) nicht
-    // weitermachen — sonst wird z.B. das großgeschriebene erste Wort des
-    // NÄCHSTEN Satzes fälschlich noch zum Namen dazugezogen ("Frau Musterfrau.
-    // Später rief..." -> ohne diesen Stopp würde "Später" mit reingezogen).
-    // Ausnahme: einzelne Initialen wie "J." (Vorname-Mittelinitiale).
-    const isSingleLetterInitial = /^\p{Lu}\.$/u.test(rawText.trim());
-    if (/[.!?]$/.test(rawText.trim()) && !isSingleLetterInitial) break;
   }
   if (words.length === 0) return null;
   return { tokenIds: ids, text: words.join(' '), nextWi: wi };
 }
 
-function detectNameCandidates(map, wordIndices) {
+function detectNameCandidates(map) {
+  const wordIndices = tokens.map((t, i) => i).filter(i => tokens[i].type === 'word');
 
   function addName(tokenIds, text) {
     if (!text || text.replace(/[^\p{L}]/gu, '').length < 2) return;
@@ -2335,7 +956,6 @@ function renderCandidatesList() {
     const state = getCandidateState(cand);
     const meta = CANDIDATE_TYPE_META[cand.type];
     const safeKey = cand.key.replace(/'/g, "\\'");
-    const preview = peekAutoLabel(CANDIDATE_CATEGORY_MAP[cand.type], cand.text);
     const row = document.createElement('div');
     row.className = 'candidate-row-wrap';
     row.innerHTML = `
@@ -2348,7 +968,7 @@ function renderCandidatesList() {
         <span class="candidate-text" title="${escapeHtml(cand.text)}">${escapeHtml(cand.text)}</span>
         ${cand.occurrences > 1 ? `<span class="candidate-count">${cand.occurrences}×</span>` : ''}
       </div>
-      ${`<input type="text" class="tc-placeholder-input" placeholder="Automatisch: ${escapeHtml(preview)}"
+      ${`<input type="text" class="tc-placeholder-input" placeholder="Platzhalter (optional), auch vor dem Schwärzen setzbar"
         value="${escapeHtml(cand.replacement || '')}"
         oninput="setCandidateReplacement('${safeKey}', this.value)">`}
     `;
@@ -2361,12 +981,12 @@ function setCandidateReplacement(key, value) {
   const cand = candidates.find(c => c.key === key);
   if (!cand) return;
   cand.replacement = value;
-  const isAnyRedacted = cand.tokenIds.some(id => { const t = tokenById.get(id); return t && t.redacted; });
-  const placeholder = (value && value.trim()) || (isAnyRedacted ? getAutoLabel(CANDIDATE_CATEGORY_MAP[cand.type], cand.text) : null);
+  const placeholder = value && value.trim() ? value.trim() : null;
   cand.tokenIds.forEach(id => {
     const t = tokenById.get(id);
     if (!t || !t.redacted) return;
-    tokenPlaceholder.set(t.id, placeholder);
+    if (placeholder) tokenPlaceholder.set(t.id, placeholder);
+    else tokenPlaceholder.delete(t.id);
     updateTokenSpanClass(t);
   });
 }
@@ -2375,9 +995,7 @@ function toggleCandidate(key) {
   const cand = candidates.find(c => c.key === key);
   if (!cand) return;
   const makeRedacted = getCandidateState(cand) !== 'all';
-  const placeholder = makeRedacted
-    ? ((cand.replacement && cand.replacement.trim()) || getAutoLabel(CANDIDATE_CATEGORY_MAP[cand.type], cand.text))
-    : null;
+  const placeholder = cand.replacement && cand.replacement.trim() ? cand.replacement.trim() : null;
 
   saveHistory(`${makeRedacted ? 'Schwärzen' : 'Aufheben'}: "${cand.text.substring(0, 20)}"`);
   cand.tokenIds.forEach(id => {
@@ -2385,7 +1003,7 @@ function toggleCandidate(key) {
     if (!t) return;
     t.redacted = makeRedacted;
     t.suggested = false;
-    if (makeRedacted) tokenPlaceholder.set(t.id, placeholder);
+    if (makeRedacted && placeholder) tokenPlaceholder.set(t.id, placeholder);
     else tokenPlaceholder.delete(t.id);
     updateTokenSpanClass(t);
   });
@@ -2408,17 +1026,14 @@ function toggleAllCandidates(makeRedacted) {
   saveHistory(makeRedacted ? 'Alle Kandidaten schwärzen' : 'Alle Kandidaten aufheben');
   let count = 0;
   candidates.forEach(cand => {
-    let placeholder = null;
+    const placeholder = cand.replacement && cand.replacement.trim() ? cand.replacement.trim() : null;
     let matched = false;
     cand.tokenIds.forEach(id => {
       const t = tokenById.get(id);
       if (t && t.redacted !== makeRedacted) {
-        if (makeRedacted && placeholder === null) {
-          placeholder = (cand.replacement && cand.replacement.trim()) || getAutoLabel(CANDIDATE_CATEGORY_MAP[cand.type], cand.text);
-        }
         t.redacted = makeRedacted;
         t.suggested = false;
-        if (makeRedacted) tokenPlaceholder.set(t.id, placeholder);
+        if (makeRedacted && placeholder) tokenPlaceholder.set(t.id, placeholder);
         else tokenPlaceholder.delete(t.id);
         updateTokenSpanClass(t);
         count++;
@@ -2440,11 +1055,8 @@ function loadCustomTerms() {
   try {
     const raw = localStorage.getItem(CUSTOM_TERMS_KEY);
     const parsed = raw ? JSON.parse(raw) : [];
-    // Migration: ältere Versionen speicherten reine Strings oder {text,replacement} ohne Kategorie
-    customTerms = parsed.map(t => {
-      if (typeof t === 'string') return { text: t, replacement: '', category: 'PERSON' };
-      return { text: t.text, replacement: t.replacement || '', category: t.category || 'PERSON' };
-    });
+    // Migration: ältere Version speicherte reine Strings statt {text, replacement}
+    customTerms = parsed.map(t => typeof t === 'string' ? { text: t, replacement: '' } : t);
   } catch (e) {
     customTerms = [];
   }
@@ -2466,7 +1078,6 @@ function renderCustomTermsList() {
   customTerms.forEach((term, i) => {
     const row = document.createElement('div');
     row.className = 'term-chip term-chip-row';
-    const preview = peekAutoLabel(term.category, term.text);
     row.innerHTML = `
       <div style="display:flex; align-items:center; gap:6px; width:100%;">
         <span title="${escapeHtml(term.text)}" style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(term.text)}</span>
@@ -2477,14 +1088,9 @@ function renderCustomTermsList() {
           </svg>
         </span>
       </div>
-      <div style="display:flex; gap:6px;">
-        <select class="tc-category-select" onchange="setCustomTermCategory(${i}, this.value)" title="Kategorie für automatische Nummerierung">
-          ${CATEGORY_OPTIONS.map(cat => `<option value="${cat}" ${cat === term.category ? 'selected' : ''}>${cat}</option>`).join('')}
-        </select>
-        <input type="text" class="tc-placeholder-input" placeholder="Automatisch: ${escapeHtml(preview)}"
-          value="${escapeHtml(term.replacement || '')}"
-          oninput="setCustomTermReplacement(${i}, this.value)" style="flex:1;">
-      </div>
+      <input type="text" class="tc-placeholder-input" placeholder="Platzhalter (optional), z.B. [PERSON]"
+        value="${escapeHtml(term.replacement || '')}"
+        oninput="setCustomTermReplacement(${i}, this.value)">
     `;
     container.appendChild(row);
   });
@@ -2495,14 +1101,6 @@ function setCustomTermReplacement(index, value) {
   customTerms[index].replacement = value;
   saveCustomTermsToStorage();
   // Falls der Begriff bereits geschwärzt im Dokument steht, Platzhalter live nachziehen
-  if (isEditorMode) applyCustomTermPlaceholders();
-}
-
-function setCustomTermCategory(index, value) {
-  if (!customTerms[index]) return;
-  customTerms[index].category = value;
-  saveCustomTermsToStorage();
-  renderCustomTermsList(); // Vorschau-Text im Platzhalter-Feld aktualisieren
   if (isEditorMode) applyCustomTermPlaceholders();
 }
 
@@ -2518,7 +1116,7 @@ function addCustomTerm() {
     return;
   }
 
-  customTerms.push({ text: value, replacement: '', category: 'PERSON' });
+  customTerms.push({ text: value, replacement: '' });
   saveCustomTermsToStorage();
   renderCustomTermsList();
   input.value = '';
@@ -2530,7 +1128,6 @@ function addCustomTerm() {
   }
   showToast(`„${value}" zur Liste hinzugefügt.`, 'plus');
 }
-
 
 function removeCustomTerm(index) {
   const removed = customTerms.splice(index, 1);
@@ -2567,16 +1164,12 @@ function applyCustomTermPlaceholders() {
   customTerms.forEach(term => {
     const termWords = term.text.trim().split(/\s+/).filter(Boolean);
     if (termWords.length === 0) return;
-    let effective = null; // lazy: nur berechnen, wenn tatsächlich ein geschwärztes Vorkommen existiert —
-                           // sonst würden inaktive Listeneinträge unnötig Nummern verbrauchen.
     forEachTermMatch(wordIndices, termWords, (idxArray) => {
       idxArray.forEach(idx => {
         const tok = tokens[idx];
         if (!tok.redacted) return;
-        if (effective === null) {
-          effective = (term.replacement && term.replacement.trim()) || getAutoLabel(term.category, term.text);
-        }
-        tokenPlaceholder.set(tok.id, effective);
+        if (term.replacement && term.replacement.trim()) tokenPlaceholder.set(tok.id, term.replacement.trim());
+        else tokenPlaceholder.delete(tok.id);
         updateTokenSpanClass(tok);
       });
     });
@@ -2621,17 +1214,14 @@ function redactCustomTerms() {
   customTerms.forEach(term => {
     const termWords = term.text.trim().split(/\s+/).filter(Boolean);
     if (termWords.length === 0) return;
-    let effective = null;
+    const hasReplacement = term.replacement && term.replacement.trim();
     let termMatched = false;
     forEachTermMatch(wordIndices, termWords, (idxArray) => {
       idxArray.forEach(idx => {
         if (!tokens[idx].redacted) {
-          if (effective === null) {
-            effective = (term.replacement && term.replacement.trim()) || getAutoLabel(term.category, term.text);
-          }
           tokens[idx].redacted = true;
           tokens[idx].suggested = false;
-          tokenPlaceholder.set(tokens[idx].id, effective);
+          if (hasReplacement) tokenPlaceholder.set(tokens[idx].id, term.replacement.trim());
           updateTokenSpanClass(tokens[idx]);
           count++;
           termMatched = true;
@@ -2683,33 +1273,10 @@ function clearAll() {
 // wird, wenn für ein Token kein eigener (Begriffs-/Kandidaten-)Platzhalter gesetzt ist.
 function getProcessedText(fallbackOverride) {
   const fallback = fallbackOverride || defaultPlaceholder;
-  let result = '';
-  let i = 0;
-  while (i < tokens.length) {
-    const t = tokens[i];
-    if (t.type !== 'word' || !t.redacted) {
-      result += t.text;
-      i++;
-      continue;
-    }
-    const placeholder = tokenPlaceholder.get(t.id) || fallback;
-    result += placeholder;
-    i++;
-    // Nachfolgende, durch je EIN Leerzeichen getrennte Wort-Tokens mit demselben
-    // Platzhalter gehören zum selben Block (z.B. "Musterstraße 12") — deren Text
-    // UND das verbindende Leerzeichen werden verschluckt, damit der Platzhalter
-    // nur einmal im Ergebnis auftaucht statt einmal pro Wort.
-    while (i < tokens.length && tokens[i].type === 'whitespace') {
-      const afterWs = tokens[i + 1];
-      if (afterWs && afterWs.type === 'word' && afterWs.redacted &&
-          (tokenPlaceholder.get(afterWs.id) || fallback) === placeholder) {
-        i += 2;
-      } else {
-        break;
-      }
-    }
-  }
-  return result;
+  return tokens.map(t => {
+    if (!t.redacted) return t.text;
+    return tokenPlaceholder.get(t.id) || fallback;
+  }).join('');
 }
 
 function copyText() {
@@ -2942,7 +1509,6 @@ function switchToEditorMode() {
   document.getElementById('editorPane').style.display = 'block';
   document.getElementById('inputToolbar').style.display = 'none';
   document.getElementById('editorToolbar').style.display = 'flex';
-  document.getElementById('tokenLegend').style.display = 'flex';
   document.getElementById('statsBar').style.display = 'flex';
   document.getElementById('meterBar').style.display = 'block';
   document.getElementById('panelTitle').textContent = 'Schwärzungs-Editor';
@@ -2956,12 +1522,10 @@ function resetToInput() {
   history = [];
   candidates = [];
   tokenPlaceholder.clear();
-  resetCategoryNumbering();
   document.getElementById('inputTextarea').style.display = 'block';
   document.getElementById('editorPane').style.display = 'none';
   document.getElementById('inputToolbar').style.display = 'flex';
   document.getElementById('editorToolbar').style.display = 'none';
-  document.getElementById('tokenLegend').style.display = 'none';
   document.getElementById('statsBar').style.display = 'none';
   document.getElementById('meterBar').style.display = 'none';
   document.getElementById('panelTitle').textContent = 'Texteingabe';
@@ -3070,6 +1634,3 @@ document.addEventListener('keydown', (e) => {
 // Re-init icons after DOM mutations
 const iconObserver = new MutationObserver(() => lucide.createIcons());
 iconObserver.observe(document.getElementById('historyList'), { childList: true });
-</script>
-</body>
-</html>
