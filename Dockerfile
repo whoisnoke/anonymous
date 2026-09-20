@@ -12,6 +12,7 @@ RUN apt-get update \
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY index.html /usr/share/nginx/html/index.html
 COPY dictionary.json /usr/share/nginx/html/dictionary.json
+COPY vendor /usr/share/nginx/html/vendor
 COPY ner_server.py /app/ner_server.py
 
 WORKDIR /app
