@@ -6,7 +6,7 @@
 <title>Redact-o-Mat — DSGVO Schwärzungstool</title>
 <!-- Alle Bibliotheken und Schriften liegen lokal in vendor/ — beim Öffnen der Seite wird nichts von Drittservern
      geladen. Die CSP erzwingt das: Verbindungen gehen nur an die eigene Herkunft bzw. den lokalen NER-Server. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' http://127.0.0.1:5001 http://localhost:5001; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' http://127.0.0.1:5001 http://localhost:5001 http://127.0.0.1:5002 http://localhost:5002; object-src 'none'; base-uri 'none'; form-action 'none'">
 <link rel="icon" href="data:,">
 <link rel="stylesheet" href="vendor/fonts.css">
 <script src="vendor/lucide.min.js"></script>
@@ -926,7 +926,7 @@
     <div class="action-section auto-detect-section">
       <h3>Erkannte Kandidaten</h3>
       <p style="font-size:11px; color:#94A3B8; margin-bottom:8px; line-height:1.5;">
-        Automatisch gefundene Datums-, E-Mail- und Namensmuster. Ein Klick schwärzt/entschwärzt <strong>alle</strong> Vorkommen im Dokument.
+        Automatisch gefundene Muster (Namen, Adressen, Kontaktdaten, IBAN …). Ein Klick schwärzt/entschwärzt <strong>alle</strong> Vorkommen im Dokument.
       </p>
       <label style="display:flex; align-items:center; gap:7px; font-size:11.5px; color:var(--navy); margin-bottom:10px; padding:6px 8px; background:#F1F5F9; border-radius:4px; cursor:pointer;">
         <input type="checkbox" id="nerToggle" onchange="onNerToggle(this.checked)" style="margin:0;">
@@ -936,6 +936,15 @@
       <div id="nerLoadingRow" style="display:none; align-items:center; gap:8px; padding:6px 8px; margin:-4px 0 10px; font-size:11.5px; color:var(--navy);">
         <div class="spinner"></div>
         <span>NER-Server durchsucht den Text nach weiteren Namen …</span>
+      </div>
+      <label style="display:flex; align-items:center; gap:7px; font-size:11.5px; color:var(--navy); margin-bottom:10px; padding:6px 8px; background:#F1F5F9; border-radius:4px; cursor:pointer;">
+        <input type="checkbox" id="presidioToggle" onchange="onPresidioToggle(this.checked)" style="margin:0;">
+        <span style="flex:1;">Presidio-Server nutzen (Orte, Organisationen, Kreditkarten, IPs, URLs, Krypto-Wallets …)</span>
+        <span id="presidioStatus" class="ner-status ner-status-unknown" title="Serverstatus">●</span>
+      </label>
+      <div id="presidioLoadingRow" style="display:none; align-items:center; gap:8px; padding:6px 8px; margin:-4px 0 10px; font-size:11.5px; color:var(--navy);">
+        <div class="spinner"></div>
+        <span>Presidio-Server durchsucht den Text nach weiteren Kandidaten …</span>
       </div>
       <div style="display:flex; gap:8px; margin-bottom:10px;">
         <button class="btn btn-ghost" style="flex:1; justify-content:center;" onclick="toggleAllCandidates(true)">
@@ -1081,10 +1090,16 @@ let learnedTerms = new Set(); // Begriffe, die durch Schwärzen automatisch "gel
 // Kategorie-basierte, konsistente Nummerierung (PERSON 1, PERSON 2, ADRESSE 1, …)
 // Gilt bewusst nur PRO DOKUMENT — wird bei jeder neuen Analyse zurückgesetzt.
 // ---------------------------
-const CATEGORY_OPTIONS = ['PERSON', 'ADRESSE', 'E-MAIL', 'TELEFON', 'IBAN', 'DATUM', 'SONSTIGES'];
+const CATEGORY_OPTIONS = [
+  'PERSON', 'ADRESSE', 'ORT', 'ORGANISATION', 'E-MAIL', 'TELEFON', 'IBAN',
+  'KREDITKARTE', 'IP-ADRESSE', 'URL', 'KRYPTO-WALLET', 'DATUM', 'SONSTIGES'
+];
 const CANDIDATE_CATEGORY_MAP = {
   name: 'PERSON', address: 'ADRESSE', email: 'E-MAIL',
-  phone: 'TELEFON', iban: 'IBAN', date: 'DATUM'
+  phone: 'TELEFON', iban: 'IBAN', date: 'DATUM',
+  // ab hier: nur über den Presidio-Server erreichbare Kategorien (siehe unten)
+  location: 'ORT', organization: 'ORGANISATION',
+  creditcard: 'KREDITKARTE', ip: 'IP-ADRESSE', url: 'URL', crypto: 'KRYPTO-WALLET'
 };
 let categoryCounters = {};    // z.B. { PERSON: 2, ADRESSE: 1 }
 let categoryAssignments = new Map(); // "KATEGORIE|normalisierter text" -> "[KATEGORIE N]"
@@ -1220,6 +1235,132 @@ function mergeNerNamesIntoCandidates(names) {
   renderCandidatesList();
   tokens.forEach(t => { if (t.type === 'word') updateTokenSpanClass(t); });
   showToast(`${addedCount} zusätzliche(r) Name(n) per NER erkannt.`, 'sparkles');
+}
+
+// ---------------------------
+// Presidio-Server (optional, siehe presidio_server.py) — dritte, unabhängige
+// Erkennungsquelle NEBEN der JS-Heuristik und dem separaten NER-Server. Liefert
+// über Namen hinaus u.a. Orte, Organisationen, Kreditkarten, IP-Adressen, URLs
+// und Krypto-Wallet-Adressen; Presidio-Kategorie -> interner Kandidatentyp:
+// ---------------------------
+const PRESIDIO_SERVER_URL = 'http://127.0.0.1:5002/analyze';
+const PRESIDIO_TYPE_MAP = {
+  PERSON: 'name', LOCATION: 'location', ORGANIZATION: 'organization', DATE_TIME: 'date',
+  EMAIL_ADDRESS: 'email', PHONE_NUMBER: 'phone', IBAN_CODE: 'iban',
+  CREDIT_CARD: 'creditcard', IP_ADDRESS: 'ip', URL: 'url', CRYPTO: 'crypto'
+};
+let usePresidioServer = false;
+let presidioServerStatus = 'unknown'; // 'unknown' | 'ok' | 'error'
+
+function onPresidioToggle(checked) {
+  usePresidioServer = checked;
+  try { localStorage.setItem('redactomat_use_presidio', checked ? '1' : '0'); } catch (e) {}
+  if (checked) checkPresidioServerHealth();
+}
+
+async function checkPresidioServerHealth() {
+  const statusEl = document.getElementById('presidioStatus');
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 2500);
+    const res = await fetch(PRESIDIO_SERVER_URL.replace('/analyze', '/presidio-health'), { signal: controller.signal });
+    clearTimeout(timeout);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    presidioServerStatus = 'ok';
+    if (statusEl) { statusEl.className = 'ner-status ner-status-ok'; statusEl.title = 'Presidio-Server erreichbar'; }
+  } catch (e) {
+    presidioServerStatus = 'error';
+    if (statusEl) { statusEl.className = 'ner-status ner-status-error'; statusEl.title = 'Presidio-Server nicht erreichbar — läuft "python presidio_server.py"?'; }
+  }
+}
+
+// Schickt den vollständigen Text an den lokalen Presidio-Server und mischt die
+// gefundenen Entitäten (jeweils als Zeichen-Spanne, nicht Token-Index) als
+// zusätzliche Kandidaten ein. Läuft wie runNerDetection() im Hintergrund NACH
+// der schnellen JS-Analyse, blockiert die Oberfläche also nicht.
+async function runPresidioDetection(text) {
+  if (!usePresidioServer) return;
+  const statusEl = document.getElementById('presidioStatus');
+  const loadingRow = document.getElementById('presidioLoadingRow');
+  if (loadingRow) loadingRow.style.display = 'flex';
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 20000);
+    const res = await fetch(PRESIDIO_SERVER_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+      signal: controller.signal
+    });
+    clearTimeout(timeout);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    presidioServerStatus = 'ok';
+    if (statusEl) { statusEl.className = 'ner-status ner-status-ok'; statusEl.title = 'Presidio-Server erreichbar'; }
+
+    const entities = Array.isArray(data.entities) ? data.entities : [];
+    if (entities.length === 0) return;
+    mergePresidioEntitiesIntoCandidates(entities);
+  } catch (e) {
+    presidioServerStatus = 'error';
+    if (statusEl) { statusEl.className = 'ner-status ner-status-error'; statusEl.title = 'Presidio-Server nicht erreichbar — läuft "python presidio_server.py"?'; }
+    console.warn('Presidio-Server nicht erreichbar:', e);
+  } finally {
+    if (loadingRow) loadingRow.style.display = 'none';
+  }
+}
+
+// Findet alle Wort-Token-IDs, die sich mit der Zeichen-Spanne [start, end) über-
+// schneiden. tokens ist immer in Dokumentreihenfolge (nie umsortiert) — daher
+// per Binärsuche der erste in Frage kommende Token, dann linear weiter, bis die
+// Token-Startposition die Spanne verlässt (O(log n + Trefferbreite) statt O(n)).
+function findTokenIdsInRange(start, end) {
+  let lo = 0, hi = tokens.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (tokens[mid].end <= start) lo = mid + 1; else hi = mid;
+  }
+  const ids = [];
+  for (let i = lo; i < tokens.length && tokens[i].start < end; i++) {
+    if (tokens[i].type === 'word') ids.push(tokens[i].id);
+  }
+  return ids;
+}
+
+function mergePresidioEntitiesIntoCandidates(entities) {
+  const map = new Map(candidates.map(c => [c.key, c]));
+  let addedCount = 0;
+
+  entities.forEach(ent => {
+    const type = PRESIDIO_TYPE_MAP[ent.entity_type];
+    if (!type) return; // unbekannter Presidio-Typ (Sicherheitsnetz — der Server filtert bereits)
+    const idArray = findTokenIdsInRange(ent.start, ent.end);
+    if (idArray.length === 0) return;
+    const text = joinTokensCleanEnd(idArray);
+    if (!text) return;
+    const key = type + '|' + text.toLowerCase();
+
+    const existing = map.get(key);
+    // Dieselbe Textstelle wurde ggf. schon von der JS-Heuristik (oder einer
+    // vorherigen Presidio-Entität mit gleichem Text) erfasst — dann NICHT nochmal
+    // mitzählen, sonst verdoppelt sich die "N×"-Vorkommenanzeige ohne echten Grund.
+    if (existing && idArray.every(id => existing.tokenIds.includes(id))) return;
+
+    if (!existing) { map.set(key, { key, type, text, tokenIds: [], occurrences: 0 }); addedCount++; }
+    map.get(key).tokenIds.push(...idArray);
+    map.get(key).occurrences++;
+  });
+
+  if (addedCount === 0) return; // alles bereits durch Heuristik/JS/NER gefunden
+
+  candidates = Array.from(map.values()).sort((a, b) => {
+    if (a.type !== b.type) return a.type.localeCompare(b.type);
+    return a.text.localeCompare(b.text, 'de');
+  });
+  markCandidatesAsSuggested();
+  renderCandidatesList();
+  tokens.forEach(t => { if (t.type === 'word') updateTokenSpanClass(t); });
+  showToast(`${addedCount} zusätzliche(r) Kandidat(en) per Presidio erkannt.`, 'sparkles');
 }
 
 async function loadDictionary() {
@@ -1434,6 +1575,16 @@ document.addEventListener('DOMContentLoaded', () => {
       checkNerServerHealth();
     }
   } catch (e) {}
+
+  try {
+    const savedUsePresidio = localStorage.getItem('redactomat_use_presidio');
+    if (savedUsePresidio === '1') {
+      usePresidioServer = true;
+      const cb = document.getElementById('presidioToggle');
+      if (cb) cb.checked = true;
+      checkPresidioServerHealth();
+    }
+  } catch (e) {}
 });
 
 // ===========================
@@ -1514,6 +1665,20 @@ function nextFrame() {
   return new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 }
 
+// Springt nach der Analyse zu den Schwärzungsoptionen (erkannte Kandidaten,
+// "Alle schwärzen"/"Alle aufheben") — besonders auf schmalen Bildschirmen, wo
+// die Panels untereinander statt nebeneinander stehen, kann man beim Eintippen
+// oder Hochladen eines langen Texts weit nach unten gescrollt sein; ohne diesen
+// Sprung blieben die Optionen dann außerhalb des sichtbaren Bereichs.
+// scrollIntoView() kümmert sich automatisch um JEDEN scrollbaren Vorfahren
+// (Fenster UND ggf. innen liegende overflow-Container), nicht nur um einen.
+function scrollToRedactionOptions() {
+  const section = document.querySelector('.auto-detect-section');
+  if (section && typeof section.scrollIntoView === 'function') {
+    section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+}
+
 async function startAnalysis() {
   const text = document.getElementById('inputTextarea').value.trim();
   if (!text) {
@@ -1539,10 +1704,12 @@ async function startAnalysis() {
   if (btn) btn.disabled = false;
   const seconds = (((typeof performance !== 'undefined') ? performance.now() : Date.now()) - startedAt) / 1000;
   showToast(`Analyse abgeschlossen (${seconds.toFixed(1)}s, ${candidates.length} Kandidat${candidates.length === 1 ? '' : 'en'} gefunden).`, 'check-circle-2');
+  scrollToRedactionOptions();
 
   // Läuft im Hintergrund weiter, blockiert die Oberfläche nicht — die schnelle
   // Heuristik ist sofort sichtbar, NER-Treffer ergänzen die Liste kurz danach.
   if (useNerServer) runNerDetection(text);
+  if (usePresidioServer) runPresidioDetection(text);
 }
 
 function tokenize(text) {
@@ -1560,7 +1727,9 @@ function tokenize(text) {
     if (/^\r?\n$/.test(t)) type = 'newline';
     else if (/^\s+$/.test(t)) type = 'whitespace';
 
-    tokens.push({ id: id++, text: t, type, redacted: false, suggested: false });
+    // start/end (Zeichenversatz im Originaltext) werden für die Zuordnung von
+    // Presidio-Treffern gebraucht — Presidio liefert Zeichenspannen, keine Token-Indizes.
+    tokens.push({ id: id++, text: t, type, redacted: false, suggested: false, start: match.index, end: match.index + t.length });
   }
   rebuildTokenIndex();
 
@@ -2032,7 +2201,14 @@ const CANDIDATE_TYPE_META = {
   name:    { label: 'Name',     icon: 'user' },
   phone:   { label: 'Telefon',  icon: 'phone' },
   iban:    { label: 'IBAN',     icon: 'credit-card' },
-  address: { label: 'Adresse',  icon: 'map-pin' }
+  address: { label: 'Adresse',  icon: 'map-pin' },
+  // ab hier: nur über den Presidio-Server erreichbare Kandidatentypen (siehe unten)
+  location:     { label: 'Ort',           icon: 'compass' },
+  organization: { label: 'Organisation',  icon: 'building-2' },
+  creditcard:   { label: 'Kreditkarte',   icon: 'wallet' },
+  ip:           { label: 'IP-Adresse',    icon: 'network' },
+  url:          { label: 'URL',           icon: 'link' },
+  crypto:       { label: 'Krypto-Wallet', icon: 'bitcoin' }
 };
 
 function detectCandidates() {
