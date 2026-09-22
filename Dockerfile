@@ -18,10 +18,11 @@ COPY presidio_server.py /app/presidio_server.py
 
 WORKDIR /app
 
-# 8080 = nginx (die App selbst). 5001/5002 = NER-/Presidio-Server — der Browser ruft
-# diese beiden direkt über 127.0.0.1 auf (nicht über nginx), müssen beim Start also
-# mit `-p 5001:5001 -p 5002:5002` mitveröffentlicht werden, sonst bleiben die beiden
-# optionalen Erkennungs-Toggles in der Oberfläche wirkungslos.
+# 8080 = nginx (die App selbst) — für die normale Docker-Nutzung reicht dieser EINE
+# Port: index.html spricht NER-/Presidio-Server zuerst über einen relativen Pfad an,
+# den nginx intern an 5001/5002 weiterleitet (siehe nginx.conf). 5001/5002 selbst sind
+# nur zusätzlich freigegeben, falls man sie mal direkt von außerhalb ansprechen will
+# (siehe docker-compose.yml) — für die App-Funktion nicht nötig.
 EXPOSE 8080 5001 5002
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \

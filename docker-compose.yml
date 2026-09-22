@@ -1,0 +1,17 @@
+services:
+  redactomat:
+    build: .
+    container_name: redactomat
+    ports:
+      # Die App selbst. NER-/Presidio-Server laufen im Container mit — die Seite
+      # spricht sie zuerst über diesen einen Port an (per nginx-Proxy) und fällt nur
+      # zurück auf feste Ports, wenn index.html OHNE diesen Proxy geöffnet wird (siehe
+      # unten). Für die normale Docker-Nutzung reicht dieser eine Port.
+      - "8080:8080"
+      # Optional: nur nötig, wenn du /detect-names, /health, /analyze oder
+      # /presidio-health direkt von außerhalb des Containers ansprechen willst
+      # (z.B. aus einem eigenen Skript). Für die App selbst nicht erforderlich —
+      # bei Bedarf einfach auskommentieren:
+      # - "5001:5001"
+      # - "5002:5002"
+    restart: unless-stopped
