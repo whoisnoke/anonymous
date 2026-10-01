@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Redact-o-Mat — DSGVO Schwärzungstool</title>
 <!-- Alle Bibliotheken und Schriften liegen lokal in vendor/ — beim Öffnen der Seite wird nichts von Drittservern
-     geladen. Die CSP erzwingt das: Verbindungen gehen nur an die eigene Herkunft bzw. den lokalen NER-Server. -->
+     geladen. Die CSP erzwingt das: Verbindungen gehen nur an die eigene Herkunft (inkl. optionalem lokalen KI-Proxy, siehe nginx.conf) bzw. den lokalen NER-Server. -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' http://127.0.0.1:5001 http://localhost:5001; object-src 'none'; base-uri 'none'; form-action 'none'">
 <link rel="icon" href="data:,">
 <link rel="stylesheet" href="vendor/fonts.css">
@@ -609,6 +609,15 @@
   .ner-status-unknown { color: #CBD5E1; }
   .ner-status-ok { color: var(--green, #16A34A); }
   .ner-status-error { color: var(--remove, #DC2626); }
+  .candidate-ai {
+    font-family: 'DM Mono', monospace;
+    font-size: 9px;
+    color: #6D28D9;
+    background: #EDE9FE;
+    padding: 1px 5px;
+    border-radius: 10px;
+    flex-shrink: 0;
+  }
 
   /* CUSTOM TERM CHIPS */
   .term-chip {
@@ -937,6 +946,15 @@
         <div class="spinner"></div>
         <span>NER-Server durchsucht den Text nach weiteren Namen …</span>
       </div>
+      <label style="display:flex; align-items:center; gap:7px; font-size:11.5px; color:var(--navy); margin-bottom:10px; padding:6px 8px; background:#F1F5F9; border-radius:4px; cursor:pointer;">
+        <input type="checkbox" id="llmToggle" onchange="onLlmToggle(this.checked)" style="margin:0;">
+        <span style="flex:1;">Lokales KI-Modell für zusätzliche Erkennung nutzen</span>
+        <span id="llmStatus" class="ner-status ner-status-unknown" title="Modellstatus">●</span>
+      </label>
+      <div id="llmLoadingRow" style="display:none; align-items:center; gap:8px; padding:6px 8px; margin:-4px 0 10px; font-size:11.5px; color:var(--navy);">
+        <div class="spinner"></div>
+        <span id="llmLoadingText">KI-Modell analysiert den Text …</span>
+      </div>
       <div style="display:flex; gap:8px; margin-bottom:10px;">
         <button class="btn btn-ghost" style="flex:1; justify-content:center;" onclick="toggleAllCandidates(true)">
           <i data-lucide="check-square" size="13"></i> Alle schwärzen
@@ -1081,11 +1099,15 @@ let learnedTerms = new Set(); // Begriffe, die durch Schwärzen automatisch "gel
 // Kategorie-basierte, konsistente Nummerierung (PERSON 1, PERSON 2, ADRESSE 1, …)
 // Gilt bewusst nur PRO DOKUMENT — wird bei jeder neuen Analyse zurückgesetzt.
 // ---------------------------
-const CATEGORY_OPTIONS = ['PERSON', 'ADRESSE', 'E-MAIL', 'TELEFON', 'IBAN', 'DATUM', 'SONSTIGES'];
+const CATEGORY_OPTIONS = ['PERSON', 'ADRESSE', 'E-MAIL', 'TELEFON', 'IBAN', 'DATUM', 'BEHÖRDE', 'FIRMA', 'ORT', 'SONSTIGES'];
 const CANDIDATE_CATEGORY_MAP = {
   name: 'PERSON', address: 'ADRESSE', email: 'E-MAIL',
   phone: 'TELEFON', iban: 'IBAN', date: 'DATUM'
 };
+// Wirksame Kategorie eines Kandidaten: die im Dropdown gewählte, sonst der Standard je Typ.
+function candidateCategory(cand) {
+  return cand.category || CANDIDATE_CATEGORY_MAP[cand.type];
+}
 let categoryCounters = {};    // z.B. { PERSON: 2, ADRESSE: 1 }
 let categoryAssignments = new Map(); // "KATEGORIE|normalisierter text" -> "[KATEGORIE N]"
 
@@ -1220,6 +1242,243 @@ function mergeNerNamesIntoCandidates(names) {
   renderCandidatesList();
   tokens.forEach(t => { if (t.type === 'word') updateTokenSpanClass(t); });
   showToast(`${addedCount} zusätzliche(r) Name(n) per NER erkannt.`, 'sparkles');
+}
+
+// ---------------------------
+// Lokales KI-Modell (optional, OpenAI-kompatible API — z.B. LocalAI)
+// ---------------------------
+// Erreichbar über den nginx-Proxy derselben Herkunft (siehe nginx.conf), daher ist keine
+// CSP-/CORS-Änderung nötig. Die Einstellung liegt in localStorage und gilt damit nur für
+// DIESEN Browser — auf einem anderen Rechner (ohne Modell) bleibt die Option ausgeschaltet.
+// Treffer kommen wie beim NER-Server nur als Kandidaten dazu und werden nie automatisch
+// geschwärzt. Nur Funde, die wörtlich im Text stehen, werden übernommen (filtert Erfindungen).
+const LLM_MODELS_URL = '/v1/models';
+const LLM_CHAT_URL = '/v1/chat/completions';
+const LLM_CHUNK_CHARS = 4000;       // Abschnittsgröße pro Anfrage (kleine Modelle werden bei langen Texten ungenau)
+const LLM_TIMEOUT_MS = 180000;      // pro Abschnitt
+const LLM_TYPE_MAP = { PERSON: 'name', ADRESSE: 'address', TELEFON: 'phone', EMAIL: 'email' };
+const LLM_SYSTEM_PROMPT =
+  'Du bist ein Werkzeug zur Erkennung personenbezogener Daten (DSGVO) in deutschen Texten. ' +
+  'Finde ALLE Personennamen (auch Vornamen allein, Spitznamen, Namen ohne Anrede), Adressen ' +
+  '(Straße mit Hausnummer, Postleitzahl mit Ort), Telefonnummern und E-Mail-Adressen. ' +
+  'Gib jeden Fund EXAKT so zurück, wie er im Text steht (Zeichen für Zeichen, nichts ergänzen, korrigieren oder übersetzen). ' +
+  'Antworte ausschließlich mit JSON im Format {"items":[{"text":"...","type":"PERSON|ADRESSE|TELEFON|EMAIL"}]}. ' +
+  'Gibt es nichts, antworte {"items":[]}.';
+let useLocalLlm = false;
+let llmStatus = 'unknown'; // 'unknown' | 'ok' | 'error'
+let llmModelId = null;
+let llmAbortController = null;
+let analysisGeneration = 0; // erhöht sich bei jeder Analyse — verwirft Ergebnisse veralteter KI-Läufe
+
+function setLlmStatus(status, title) {
+  llmStatus = status;
+  const el = document.getElementById('llmStatus');
+  if (el) { el.className = 'ner-status ner-status-' + status; el.title = title; }
+}
+
+function onLlmToggle(checked) {
+  useLocalLlm = checked;
+  try { localStorage.setItem('redactomat_use_llm', checked ? '1' : '0'); } catch (e) {}
+  if (checked) checkLlmHealth();
+  else if (llmAbortController) llmAbortController.abort();
+}
+
+// Fragt die Modellliste ab (dient zugleich als Erreichbarkeitstest) und merkt sich das erste Modell.
+async function checkLlmHealth() {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 2500);
+    const res = await fetch(LLM_MODELS_URL, { signal: controller.signal });
+    clearTimeout(timeout);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    const id = data && Array.isArray(data.data) && data.data[0] && data.data[0].id;
+    if (!id) throw new Error('kein Modell geladen');
+    llmModelId = id;
+    setLlmStatus('ok', 'KI-Modell erreichbar: ' + id);
+  } catch (e) {
+    llmModelId = null;
+    setLlmStatus('error', 'KI-Modell nicht erreichbar — läuft der Modell-Container auf diesem Rechner?');
+  }
+}
+
+// Teilt den Text an Absatz-/Satz-/Wortgrenzen in Abschnitte von höchstens LLM_CHUNK_CHARS Zeichen.
+function splitForLlm(text) {
+  const chunks = [];
+  let rest = text;
+  while (rest.length > LLM_CHUNK_CHARS) {
+    const window = rest.slice(0, LLM_CHUNK_CHARS);
+    const minCut = LLM_CHUNK_CHARS / 2;
+    let cut = Math.max(window.lastIndexOf('\n'), window.lastIndexOf('. ') + 1);
+    if (cut < minCut) cut = window.lastIndexOf(' ');
+    if (cut < minCut) cut = LLM_CHUNK_CHARS;
+    chunks.push(rest.slice(0, cut));
+    rest = rest.slice(cut);
+  }
+  if (rest.trim()) chunks.push(rest);
+  return chunks;
+}
+
+// Liefert das erste vollständige JSON-Objekt aus einem (evtl. noch unfertigen) Textpuffer oder null.
+function findCompleteJson(buf) {
+  const start = buf.indexOf('{');
+  if (start < 0) return null;
+  let depth = 0, inStr = false, esc = false;
+  for (let i = start; i < buf.length; i++) {
+    const ch = buf[i];
+    if (inStr) {
+      if (esc) esc = false;
+      else if (ch === '\\') esc = true;
+      else if (ch === '"') inStr = false;
+      continue;
+    }
+    if (ch === '"') inStr = true;
+    else if (ch === '{') depth++;
+    else if (ch === '}' && --depth === 0) return buf.slice(start, i + 1);
+  }
+  return null;
+}
+
+// Schickt einen Abschnitt ans Modell und liest den Stream, bis das JSON vollständig ist. Danach
+// wird die Verbindung geschlossen: Reasoning-Modelle füllen sonst bis zum Token-Limit Leerzeilen.
+// Das JSON steht je nach Modell in delta.content oder delta.reasoning.
+async function askLlmChunk(chunk, signal) {
+  const res = await fetch(LLM_CHAT_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    signal,
+    body: JSON.stringify({
+      model: llmModelId,
+      temperature: 0,
+      max_tokens: 1500,
+      stream: true,
+      response_format: { type: 'json_object' },
+      messages: [
+        { role: 'system', content: LLM_SYSTEM_PROMPT },
+        { role: 'user', content: chunk }
+      ]
+    })
+  });
+  if (!res.ok || !res.body) throw new Error('HTTP ' + res.status);
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let pending = '', content = '', reasoning = '', json = null;
+  while (!json) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    pending += decoder.decode(value, { stream: true });
+    const lines = pending.split('\n');
+    pending = lines.pop();
+    for (const line of lines) {
+      if (!line.startsWith('data:')) continue;
+      const payload = line.slice(5).trim();
+      if (!payload || payload === '[DONE]') continue;
+      try {
+        const delta = JSON.parse(payload).choices[0].delta || {};
+        content += delta.content || '';
+        reasoning += delta.reasoning || delta.reasoning_content || '';
+      } catch (e) { /* unvollständige/fremde Zeile ignorieren */ }
+    }
+    json = findCompleteJson(content) || findCompleteJson(reasoning);
+  }
+  reader.cancel().catch(() => {});
+  if (!json) throw new Error('keine vollständige JSON-Antwort');
+  const parsed = JSON.parse(json);
+  return Array.isArray(parsed.items) ? parsed.items : [];
+}
+
+// Läuft NACH der schnellen Analyse im Hintergrund, Abschnitt für Abschnitt; Treffer erscheinen
+// nach jedem Abschnitt in der Kandidatenliste.
+async function runLlmDetection(text, generation) {
+  if (!useLocalLlm) return;
+  if (llmAbortController) llmAbortController.abort();
+  const controller = new AbortController();
+  llmAbortController = controller;
+  const loadingRow = document.getElementById('llmLoadingRow');
+  const loadingText = document.getElementById('llmLoadingText');
+  if (loadingRow) loadingRow.style.display = 'flex';
+
+  const isStale = () => controller.signal.aborted || generation !== analysisGeneration || !useLocalLlm;
+  let added = 0, failed = 0, total = 0;
+  try {
+    if (!llmModelId) await checkLlmHealth();
+    if (!llmModelId) return;
+    const chunks = splitForLlm(text);
+    total = chunks.length;
+    for (let i = 0; i < chunks.length; i++) {
+      if (isStale()) return;
+      if (loadingText) loadingText.textContent = total > 1
+        ? `KI-Modell analysiert Abschnitt ${i + 1}/${total} …` : 'KI-Modell analysiert den Text …';
+
+      const chunkCtl = new AbortController();
+      const onAbort = () => chunkCtl.abort();
+      controller.signal.addEventListener('abort', onAbort);
+      const timer = setTimeout(() => chunkCtl.abort(), LLM_TIMEOUT_MS);
+      let items = null;
+      try {
+        items = await askLlmChunk(chunks[i], chunkCtl.signal);
+      } catch (e) {
+        if (!controller.signal.aborted) { failed++; console.warn('KI-Modell: Abschnitt fehlgeschlagen:', e); }
+      } finally {
+        clearTimeout(timer);
+        controller.signal.removeEventListener('abort', onAbort);
+      }
+      if (isStale()) return;
+      if (items) added += mergeLlmItemsIntoCandidates(items);
+    }
+    if (failed === total) {
+      setLlmStatus('error', 'KI-Modell hat nicht geantwortet — läuft der Modell-Container auf diesem Rechner?');
+    } else {
+      setLlmStatus('ok', 'KI-Modell erreichbar: ' + llmModelId);
+      if (failed > 0) showToast(`${failed} von ${total} Abschnitten konnten vom KI-Modell nicht ausgewertet werden.`, 'alert-circle');
+    }
+    if (added > 0) showToast(`${added} zusätzliche(r) Treffer per KI-Modell erkannt.`, 'sparkles');
+  } finally {
+    if (llmAbortController === controller) {
+      llmAbortController = null;
+      if (loadingRow) loadingRow.style.display = 'none';
+    }
+  }
+}
+
+// Übernimmt Modell-Funde als Kandidaten. Nur was wörtlich im Text vorkommt und nicht schon von
+// einem anderen Kandidaten belegt ist, wird hinzugefügt. Liefert die Zahl neuer Kandidaten.
+function mergeLlmItemsIntoCandidates(items) {
+  const map = new Map(candidates.map(c => [c.key, c]));
+  const covered = new Set();
+  candidates.forEach(c => c.tokenIds.forEach(id => covered.add(id)));
+  const wordIndices = tokens.map((t, i) => i).filter(i => tokens[i].type === 'word');
+  const newKeys = new Set();
+
+  items.forEach(item => {
+    const type = item && LLM_TYPE_MAP[String(item.type || '').toUpperCase()];
+    const text = item && typeof item.text === 'string' ? item.text.trim() : '';
+    if (!type || text.length < 2 || text.length > 120) return;
+    const termWords = text.split(/\s+/).map(stripPunct).filter(Boolean);
+    if (termWords.length === 0) return;
+    const display = text.replace(/[.,;:!?]+$/, '');
+    const key = type + '|' + display.toLowerCase();
+
+    forEachTermMatch(wordIndices, termWords, (idxArray) => {
+      if (idxArray.some(i => covered.has(i))) return;
+      idxArray.forEach(i => covered.add(i));
+      if (!map.has(key)) { map.set(key, { key, type, text: display, tokenIds: [], occurrences: 0, source: 'ai' }); newKeys.add(key); }
+      const cand = map.get(key);
+      cand.tokenIds.push(...idxArray);
+      cand.occurrences++;
+    });
+  });
+
+  if (newKeys.size === 0) return 0;
+  candidates = Array.from(map.values()).sort((a, b) => {
+    if (a.type !== b.type) return a.type.localeCompare(b.type);
+    return a.text.localeCompare(b.text, 'de');
+  });
+  markCandidatesAsSuggested();
+  renderCandidatesList();
+  tokens.forEach(t => { if (t.type === 'word') updateTokenSpanClass(t); });
+  return newKeys.size;
 }
 
 async function loadDictionary() {
@@ -1434,6 +1693,15 @@ document.addEventListener('DOMContentLoaded', () => {
       checkNerServerHealth();
     }
   } catch (e) {}
+
+  try {
+    if (localStorage.getItem('redactomat_use_llm') === '1') {
+      useLocalLlm = true;
+      const cb = document.getElementById('llmToggle');
+      if (cb) cb.checked = true;
+      checkLlmHealth();
+    }
+  } catch (e) {}
 });
 
 // ===========================
@@ -1528,6 +1796,8 @@ async function startAnalysis() {
   await nextFrame();
 
   const startedAt = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+  const generation = ++analysisGeneration;
+  if (llmAbortController) llmAbortController.abort(); // Lauf zur vorherigen Analyse verwerfen
   tokenize(text); // Tokenisierung + alle Mustererkennungs-Detektoren
   switchToEditorMode();
 
@@ -1543,6 +1813,7 @@ async function startAnalysis() {
   // Läuft im Hintergrund weiter, blockiert die Oberfläche nicht — die schnelle
   // Heuristik ist sofort sichtbar, NER-Treffer ergänzen die Liste kurz danach.
   if (useNerServer) runNerDetection(text);
+  if (useLocalLlm) runLlmDetection(text, generation);
 }
 
 function tokenize(text) {
@@ -2515,7 +2786,7 @@ function renderCandidatesList() {
   candidates.forEach(cand => {
     const state = getCandidateState(cand);
     const meta = CANDIDATE_TYPE_META[cand.type];
-    const preview = peekAutoLabel(CANDIDATE_CATEGORY_MAP[cand.type], cand.text);
+    const preview = peekAutoLabel(candidateCategory(cand), cand.text);
     const key = escapeHtml(cand.key); // Schlüssel enthält Text aus dem Dokument — nur als Attribut-Wert, nie als JS
     const row = document.createElement('div');
     row.className = 'candidate-row-wrap';
@@ -2527,10 +2798,16 @@ function renderCandidatesList() {
         </span>
         <i data-lucide="${meta.icon}" size="12" style="flex-shrink:0; color:#94A3B8;"></i>
         <span class="candidate-text" title="${escapeHtml(cand.text)}">${escapeHtml(cand.text)}</span>
+        ${cand.source === 'ai' ? '<span class="candidate-ai" title="Vom lokalen KI-Modell vorgeschlagen">KI</span>' : ''}
         ${cand.occurrences > 1 ? `<span class="candidate-count">${cand.occurrences}×</span>` : ''}
       </div>
-      <input type="text" class="tc-placeholder-input" placeholder="Automatisch: ${escapeHtml(preview)}"
-        data-key="${key}" value="${escapeHtml(cand.replacement || '')}">
+      <div style="display:flex; gap:6px;">
+        <select class="tc-category-select" data-key="${key}" title="Platzhalter-Kategorie (bestimmt die automatische Bezeichnung)">
+          ${CATEGORY_OPTIONS.map(cat => `<option value="${cat}" ${cat === candidateCategory(cand) ? 'selected' : ''}>${cat}</option>`).join('')}
+        </select>
+        <input type="text" class="tc-placeholder-input" placeholder="Automatisch: ${escapeHtml(preview)}"
+          data-key="${key}" value="${escapeHtml(cand.replacement || '')}" style="flex:1; min-width:0;">
+      </div>
     `;
     container.appendChild(row);
   });
@@ -2549,14 +2826,17 @@ function setupCandidateListEvents() {
     const input = e.target.closest('.tc-placeholder-input');
     if (input && input.dataset.key !== undefined) setCandidateReplacement(input.dataset.key, input.value);
   });
+  list.addEventListener('change', (e) => {
+    const select = e.target.closest('.tc-category-select');
+    if (select && select.dataset.key !== undefined) setCandidateCategory(select.dataset.key, select.value);
+  });
 }
 
-function setCandidateReplacement(key, value) {
-  const cand = candidates.find(c => c.key === key);
-  if (!cand) return;
-  cand.replacement = value;
+// Zieht den Platzhalter aller bereits geschwärzten Vorkommen nach (eigener Text hat Vorrang
+// vor der automatischen Bezeichnung der gewählten Kategorie).
+function refreshCandidatePlaceholder(cand) {
   const isAnyRedacted = cand.tokenIds.some(id => { const t = tokenById.get(id); return t && t.redacted; });
-  const placeholder = (value && value.trim()) || (isAnyRedacted ? getAutoLabel(CANDIDATE_CATEGORY_MAP[cand.type], cand.text) : null);
+  const placeholder = (cand.replacement && cand.replacement.trim()) || (isAnyRedacted ? getAutoLabel(candidateCategory(cand), cand.text) : null);
   cand.tokenIds.forEach(id => {
     const t = tokenById.get(id);
     if (!t || !t.redacted) return;
@@ -2565,12 +2845,27 @@ function setCandidateReplacement(key, value) {
   });
 }
 
+function setCandidateReplacement(key, value) {
+  const cand = candidates.find(c => c.key === key);
+  if (!cand) return;
+  cand.replacement = value;
+  refreshCandidatePlaceholder(cand);
+}
+
+function setCandidateCategory(key, value) {
+  const cand = candidates.find(c => c.key === key);
+  if (!cand || !CATEGORY_OPTIONS.includes(value)) return;
+  cand.category = value;
+  refreshCandidatePlaceholder(cand);
+  renderCandidatesList(); // Vorschau ("Automatisch: [BEHÖRDE 1]") im Eingabefeld aktualisieren
+}
+
 function toggleCandidate(key) {
   const cand = candidates.find(c => c.key === key);
   if (!cand) return;
   const makeRedacted = getCandidateState(cand) !== 'all';
   const placeholder = makeRedacted
-    ? ((cand.replacement && cand.replacement.trim()) || getAutoLabel(CANDIDATE_CATEGORY_MAP[cand.type], cand.text))
+    ? ((cand.replacement && cand.replacement.trim()) || getAutoLabel(candidateCategory(cand), cand.text))
     : null;
 
   saveHistory(`${makeRedacted ? 'Schwärzen' : 'Aufheben'}: "${cand.text.substring(0, 20)}"`);
@@ -2617,7 +2912,7 @@ function toggleAllCandidates(makeRedacted) {
       const t = tokenById.get(id);
       if (t && t.redacted !== makeRedacted) {
         if (makeRedacted && placeholder === null) {
-          placeholder = (cand.replacement && cand.replacement.trim()) || getAutoLabel(CANDIDATE_CATEGORY_MAP[cand.type], cand.text);
+          placeholder = (cand.replacement && cand.replacement.trim()) || getAutoLabel(candidateCategory(cand), cand.text);
         }
         t.redacted = makeRedacted;
         t.suggested = false;

@@ -14,6 +14,8 @@ COPY index.html /usr/share/nginx/html/index.html
 COPY dictionary.json /usr/share/nginx/html/dictionary.json
 COPY vendor /usr/share/nginx/html/vendor
 COPY ner_server.py /app/ner_server.py
+COPY start.sh /app/start.sh
+RUN sed -i 's/\r$//' /app/start.sh && chmod +x /app/start.sh
 
 WORKDIR /app
 
@@ -22,4 +24,4 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD wget -qO- http://127.0.0.1:8080/ >/dev/null || exit 1
 
-CMD python ner_server.py & nginx -g 'daemon off;'
+CMD ["/app/start.sh"]
