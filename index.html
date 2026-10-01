@@ -5,37 +5,138 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Redact-o-Mat — DSGVO Schwärzungstool</title>
 <!-- Alle Bibliotheken und Schriften liegen lokal in vendor/ — beim Öffnen der Seite wird nichts von Drittservern
+<<<<<<< HEAD
      geladen. Die CSP erzwingt das: Verbindungen gehen nur an die eigene Herkunft (inkl. optionalem lokalen KI-Proxy, siehe nginx.conf) bzw. den lokalen NER-Server. -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' http://127.0.0.1:5001 http://localhost:5001; object-src 'none'; base-uri 'none'; form-action 'none'">
+=======
+     geladen. Die CSP erzwingt das: Verbindungen gehen nur an die eigene Herkunft bzw. den lokalen NER-Server. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' http://127.0.0.1:5001 http://localhost:5001 http://127.0.0.1:5002 http://localhost:5002; object-src 'none'; base-uri 'none'; form-action 'none'">
+<!-- Theme so früh wie möglich setzen (vor dem ersten Paint) — sonst würde im Dunkel-
+     Modus kurz das helle Design aufblitzen, bevor das Hauptskript unten läuft. -->
+<script>
+  try {
+    const saved = localStorage.getItem('redactomat_theme');
+    if (saved === 'dark' || saved === 'light') document.documentElement.setAttribute('data-theme', saved);
+  } catch (e) {}
+</script>
+>>>>>>> 29002ace83c33424071c42ad28fe5e9756befd77
 <link rel="icon" href="data:,">
 <link rel="stylesheet" href="vendor/fonts.css">
 <script src="vendor/lucide.min.js"></script>
 <script src="vendor/pdf-lib.min.js"></script>
 <script src="vendor/mammoth.browser.min.js"></script>
 <style>
+  /* --------------------------------------------------------------
+     FARB-TOKENS
+     "--navy"/"--navy-light" bleiben bewusst FESTE Markenfarben (dunkles
+     Blaugrau) für Elemente, die in BEIDEN Themes dunkel bleiben sollen
+     (Header, Primär-Button, Toast, aktive Ansicht-Umschalter …) — sie
+     wechseln beim Theme-Wechsel NICHT. Alles, was sich mit dem Theme
+     ändern soll (Fließtext, Flächen, Rahmen, Status-Farben), hat ein
+     eigenes Token, das im [data-theme="dark"]-Block weiter unten
+     überschrieben wird.
+     -------------------------------------------------------------- */
   :root {
     --navy: #1E293B;
     --navy-light: #334155;
     --navy-faint: #E8EDF3;
     --bg: #F8FAFC;
+    --surface: #FFFFFF;
+    --surface-alt: #FAFAFA;
+    --surface-muted: #F1F5F9;
+    --border: #E2E8F0;
+    --border-strong: #CBD5E1;
+    --text: #1E293B;
+    --text-secondary: #334155;
+    --text-muted: #64748B;
+    --text-faint: #94A3B8;
+    --text-faintest: #CBD5E1;
     --amber: #D97706;
     --amber-light: #FEF3C7;
     --amber-border: #FCD34D;
     --black-mark: #0F172A;
     --green: #059669;
     --green-light: #D1FAE5;
+    --green-border: #A7F3D0;
     --red: #DC2626;
+    --red-light: #FEE2E2;
+    --red-border: #FECACA;
+    --overlay: rgba(15,23,42,0.6);
+    --shadow: rgba(15,23,42,0.3);
+    color-scheme: light;
+  }
+
+  :root[data-theme="dark"] {
+    --navy-faint: #1C2740;
+    --bg: #0B1220;
+    --surface: #131C2E;
+    --surface-alt: #0F1728;
+    --surface-muted: #19233A;
+    --border: #232F47;
+    --border-strong: #34435E;
+    --text: #E7ECF3;
+    --text-secondary: #B7C2D6;
+    --text-muted: #8996AC;
+    --text-faint: #64708A;
+    --text-faintest: #3B475F;
+    --amber: #F59E0B;
+    --amber-light: rgba(245, 158, 11, 0.16);
+    --amber-border: rgba(245, 158, 11, 0.45);
+    --black-mark: #000000;
+    --green: #34D399;
+    --green-light: rgba(52, 211, 153, 0.16);
+    --green-border: rgba(52, 211, 153, 0.4);
+    --red: #F87171;
+    --red-light: rgba(248, 113, 113, 0.16);
+    --red-border: rgba(248, 113, 113, 0.4);
+    --overlay: rgba(0,0,0,0.7);
+    --shadow: rgba(0,0,0,0.5);
+    color-scheme: dark;
+  }
+
+  /* Ohne explizite Wahl (kein data-theme gesetzt): Systemeinstellung folgen. */
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --navy-faint: #1C2740;
+      --bg: #0B1220;
+      --surface: #131C2E;
+      --surface-alt: #0F1728;
+      --surface-muted: #19233A;
+      --border: #232F47;
+      --border-strong: #34435E;
+      --text: #E7ECF3;
+      --text-secondary: #B7C2D6;
+      --text-muted: #8996AC;
+      --text-faint: #64708A;
+      --text-faintest: #3B475F;
+      --amber: #F59E0B;
+      --amber-light: rgba(245, 158, 11, 0.16);
+      --amber-border: rgba(245, 158, 11, 0.45);
+      --black-mark: #000000;
+      --green: #34D399;
+      --green-light: rgba(52, 211, 153, 0.16);
+      --green-border: rgba(52, 211, 153, 0.4);
+      --red: #F87171;
+      --red-light: rgba(248, 113, 113, 0.16);
+      --red-border: rgba(248, 113, 113, 0.4);
+      --overlay: rgba(0,0,0,0.7);
+      --shadow: rgba(0,0,0,0.5);
+      color-scheme: dark;
+    }
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
+  html { background: var(--bg); }
+
   body {
     font-family: 'Syne', sans-serif;
     background: var(--bg);
-    color: var(--navy);
+    color: var(--text);
     min-height: 100vh;
     display: flex;
     flex-direction: column;
+    transition: background 0.15s ease, color 0.15s ease;
   }
 
   /* HEADER */
@@ -85,6 +186,30 @@
     letter-spacing: 0.05em;
   }
 
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  /* THEME TOGGLE — bewusst minimal: ein Icon, keine Beschriftung, kein Rahmen. */
+  #themeToggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: none;
+    background: transparent;
+    color: rgba(255,255,255,0.7);
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+    flex-shrink: 0;
+  }
+  #themeToggle:hover { background: rgba(255,255,255,0.12); color: white; }
+  #themeToggle:focus-visible { outline: 2px solid rgba(255,255,255,0.6); outline-offset: 2px; }
+
   /* LAYOUT */
   .main-layout {
     flex: 1;
@@ -97,18 +222,18 @@
   .panel {
     display: flex;
     flex-direction: column;
-    border-right: 1px solid #CBD5E1;
+    border-right: 1px solid var(--border-strong);
   }
 
   .panel:last-child { border-right: none; }
 
   .panel-header {
     padding: 14px 20px 12px;
-    border-bottom: 1px solid #CBD5E1;
+    border-bottom: 1px solid var(--border-strong);
     display: flex;
     align-items: center;
     gap: 8px;
-    background: white;
+    background: var(--surface);
     flex-shrink: 0;
   }
 
@@ -117,11 +242,11 @@
     font-weight: 700;
     letter-spacing: 0.1em;
     text-transform: uppercase;
-    color: var(--navy-light);
+    color: var(--text-secondary);
   }
 
   .panel-icon {
-    color: var(--navy-light);
+    color: var(--text-secondary);
     opacity: 0.7;
   }
 
@@ -135,18 +260,18 @@
     font-family: 'DM Mono', monospace;
     font-size: 13.5px;
     line-height: 1.8;
-    color: var(--navy);
+    color: var(--text);
     background: transparent;
     width: 100%;
   }
 
   #inputTextarea::placeholder {
-    color: #94A3B8;
+    color: var(--text-faint);
     font-style: italic;
   }
 
   #inputTextarea.drag-over {
-    background: var(--accent-light, #EEF2FF);
+    background: var(--accent-light, var(--navy-faint));
     outline: 2px dashed var(--navy);
     outline-offset: -8px;
   }
@@ -154,7 +279,7 @@
   .spinner {
     width: 13px;
     height: 13px;
-    border: 2px solid #CBD5E1;
+    border: 2px solid var(--border-strong);
     border-top-color: var(--navy);
     border-radius: 50%;
     animation: spin 0.7s linear infinite;
@@ -186,8 +311,8 @@
   /* TOOLBAR */
   .toolbar {
     padding: 10px 16px;
-    border-top: 1px solid #E2E8F0;
-    background: white;
+    border-top: 1px solid var(--border);
+    background: var(--surface);
     display: flex;
     align-items: center;
     gap: 8px;
@@ -225,31 +350,31 @@
 
   .btn-ghost {
     background: transparent;
-    color: var(--navy-light);
-    border-color: #CBD5E1;
+    color: var(--text-secondary);
+    border-color: var(--border-strong);
   }
-  .btn-ghost:hover { background: var(--navy-faint); border-color: var(--navy-light); }
+  .btn-ghost:hover { background: var(--navy-faint); border-color: var(--text-secondary); }
 
   .btn-amber {
     background: var(--amber-light);
     color: var(--amber);
     border-color: var(--amber-border);
   }
-  .btn-amber:hover { background: #FDE68A; }
+  .btn-amber:hover { filter: brightness(0.95); }
 
   .btn-danger {
-    background: #FEE2E2;
+    background: var(--red-light);
     color: var(--red);
-    border-color: #FECACA;
+    border-color: var(--red-border);
   }
-  .btn-danger:hover { background: #FCA5A5; }
+  .btn-danger:hover { filter: brightness(0.92); }
 
   .btn-success {
     background: var(--green-light);
     color: var(--green);
-    border-color: #6EE7B7;
+    border-color: var(--green-border);
   }
-  .btn-success:hover { background: #A7F3D0; }
+  .btn-success:hover { filter: brightness(0.95); }
 
   .btn-icon {
     padding: 6px;
@@ -259,7 +384,7 @@
   .separator {
     width: 1px;
     height: 24px;
-    background: #E2E8F0;
+    background: var(--border);
     margin: 0 2px;
   }
 
@@ -271,7 +396,7 @@
     font-family: 'DM Mono', monospace;
     font-size: 13.5px;
     line-height: 1.95;
-    color: var(--navy);
+    color: var(--text);
     user-select: none;
     cursor: default;
     word-break: break-word;
@@ -288,7 +413,7 @@
     align-items: center;
     justify-content: center;
     height: 100%;
-    color: #94A3B8;
+    color: var(--text-faint);
     text-align: center;
     gap: 12px;
     min-height: 200px;
@@ -308,7 +433,7 @@
   }
 
   .token:hover {
-    background: rgba(30, 41, 59, 0.08);
+    background: rgba(148, 163, 184, 0.18);
   }
 
   .token.redacted {
@@ -322,7 +447,7 @@
   .token.replaced {
     background: var(--green-light) !important;
     color: var(--green) !important;
-    border: 1px solid #A7F3D0;
+    border: 1px solid var(--green-border);
     border-radius: 3px;
     padding: 1px 5px;
     font-weight: 600;
@@ -355,7 +480,7 @@
   }
 
   .token.suggested:hover {
-    background: #FDE68A;
+    filter: brightness(0.95);
   }
 
   .token-legend {
@@ -364,11 +489,11 @@
     gap: 16px;
     padding: 8px 12px;
     margin-top: 6px;
-    background: #FAFAF7;
-    border: 1px solid #E2E8F0;
+    background: var(--surface-muted);
+    border: 1px solid var(--border);
     border-radius: 4px;
     font-size: 11px;
-    color: #64748B;
+    color: var(--text-muted);
   }
   .legend-item {
     display: inline-flex;
@@ -377,7 +502,7 @@
     white-space: nowrap;
   }
   .legend-hint {
-    color: #94A3B8;
+    color: var(--text-faint);
     font-weight: 400;
   }
   .legend-swatch {
@@ -396,7 +521,7 @@
   }
   .legend-replaced {
     background: var(--green-light);
-    border: 1px solid #A7F3D0;
+    border: 1px solid var(--green-border);
   }
 
   .token.whitespace {
@@ -413,19 +538,19 @@
 
   /* SELECTION highlight */
   .token.in-selection {
-    background: rgba(30, 41, 59, 0.15) !important;
+    background: rgba(148, 163, 184, 0.3) !important;
   }
 
   /* STATS BAR */
   .stats-bar {
     padding: 8px 20px;
-    border-top: 1px solid #E2E8F0;
-    background: #F1F5F9;
+    border-top: 1px solid var(--border);
+    background: var(--surface-muted);
     display: flex;
     gap: 20px;
     font-family: 'DM Mono', monospace;
     font-size: 11px;
-    color: #64748B;
+    color: var(--text-muted);
     flex-shrink: 0;
   }
 
@@ -453,7 +578,7 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    box-shadow: 0 8px 24px rgba(15,23,42,0.35);
+    box-shadow: 0 8px 24px var(--shadow);
   }
   #toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
 
@@ -461,8 +586,8 @@
   .shortcut-hint {
     font-family: 'DM Mono', monospace;
     font-size: 10px;
-    background: #E2E8F0;
-    color: #64748B;
+    background: var(--border);
+    color: var(--text-muted);
     padding: 1px 5px;
     border-radius: 3px;
     margin-left: 2px;
@@ -472,7 +597,7 @@
   #exportOverlay {
     position: fixed;
     inset: 0;
-    background: rgba(15,23,42,0.6);
+    background: var(--overlay);
     z-index: 500;
     display: flex;
     align-items: center;
@@ -484,15 +609,45 @@
   #exportOverlay.show { opacity: 1; pointer-events: all; }
 
   .export-card {
-    background: white;
+    background: var(--surface);
     border-radius: 8px;
     padding: 28px;
     width: 360px;
-    box-shadow: 0 24px 64px rgba(15,23,42,0.3);
+    box-shadow: 0 24px 64px var(--shadow);
   }
-  .export-card h3 { font-size: 16px; font-weight: 700; margin-bottom: 6px; }
-  .export-card p { font-size: 12px; color: #64748B; margin-bottom: 20px; line-height: 1.6; }
+  .export-card h3 { font-size: 16px; font-weight: 700; margin-bottom: 6px; color: var(--text); }
+  .export-card p { font-size: 12px; color: var(--text-muted); margin-bottom: 20px; line-height: 1.6; }
   .export-card .btn-row { display: flex; gap: 10px; justify-content: flex-end; }
+
+  /* ONBOARDING (einmalig beim ersten Besuch) */
+  #onboardingOverlay {
+    position: fixed;
+    inset: 0;
+    background: var(--overlay);
+    z-index: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s;
+  }
+  #onboardingOverlay.show { opacity: 1; pointer-events: all; }
+  .onboarding-step { display: flex; gap: 12px; align-items: flex-start; }
+  .onboarding-step-num {
+    flex-shrink: 0;
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    background: var(--navy);
+    color: white;
+    font-size: 11px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .onboarding-step strong { font-size: 13px; color: var(--text); }
+  .onboarding-step p { font-size: 12px; color: var(--text-muted); margin: 2px 0 0; line-height: 1.5; }
 
   /* RIGHT PANEL */
   .right-panel {
@@ -502,8 +657,8 @@
 
   .action-section {
     padding: 16px 20px;
-    border-bottom: 1px solid #E2E8F0;
-    background: white;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
     flex-shrink: 0;
   }
 
@@ -512,33 +667,9 @@
     font-weight: 700;
     letter-spacing: 0.1em;
     text-transform: uppercase;
-    color: #94A3B8;
+    color: var(--text-faint);
     margin-bottom: 10px;
   }
-
-  .action-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
-  }
-
-  .action-btn-large {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 4px;
-    padding: 12px 14px;
-    border-radius: 6px;
-    border: 1.5px solid #E2E8F0;
-    background: white;
-    cursor: pointer;
-    transition: all 0.15s;
-    text-align: left;
-  }
-  .action-btn-large:hover { border-color: var(--navy-light); background: var(--navy-faint); }
-  .action-btn-large .abl-title { font-size: 12px; font-weight: 700; color: var(--navy); }
-  .action-btn-large .abl-desc { font-size: 10px; color: #94A3B8; line-height: 1.4; }
-  .action-btn-large svg { color: var(--navy-light); margin-bottom: 4px; }
 
   .auto-detect-section { flex-shrink: 0; }
 
@@ -546,14 +677,14 @@
     flex: 1;
     padding: 16px 20px;
     overflow-y: auto;
-    background: #FAFAFA;
+    background: var(--surface-alt);
   }
   .history-section h3 {
     font-size: 11px;
     font-weight: 700;
     letter-spacing: 0.1em;
     text-transform: uppercase;
-    color: #94A3B8;
+    color: var(--text-faint);
     margin-bottom: 10px;
   }
 
@@ -565,9 +696,9 @@
     border-radius: 4px;
     font-family: 'DM Mono', monospace;
     font-size: 11px;
-    color: var(--navy);
-    border: 1px solid #E2E8F0;
-    background: white;
+    color: var(--text);
+    border: 1px solid var(--border);
+    background: var(--surface);
     margin-bottom: 6px;
   }
   .history-entry .he-text {
@@ -578,7 +709,7 @@
     max-width: 140px;
   }
   .history-entry .he-badge {
-    background: #0F172A;
+    background: var(--navy);
     color: white;
     font-size: 9px;
     padding: 1px 5px;
@@ -588,7 +719,7 @@
   }
   .history-entry .he-undo {
     cursor: pointer;
-    color: #94A3B8;
+    color: var(--text-faint);
     margin-left: 6px;
     flex-shrink: 0;
   }
@@ -596,7 +727,7 @@
 
   .no-history {
     font-size: 12px;
-    color: #CBD5E1;
+    color: var(--text-faintest);
     text-align: center;
     padding: 20px 0;
     font-family: 'DM Mono', monospace;
@@ -606,6 +737,7 @@
     font-size: 10px;
     line-height: 1;
   }
+<<<<<<< HEAD
   .ner-status-unknown { color: #CBD5E1; }
   .ner-status-ok { color: var(--green, #16A34A); }
   .ner-status-error { color: var(--remove, #DC2626); }
@@ -618,6 +750,11 @@
     border-radius: 10px;
     flex-shrink: 0;
   }
+=======
+  .ner-status-unknown { color: var(--text-faintest); }
+  .ner-status-ok { color: var(--green); }
+  .ner-status-error { color: var(--red); }
+>>>>>>> 29002ace83c33424071c42ad28fe5e9756befd77
 
   /* CUSTOM TERM CHIPS */
   .term-chip {
@@ -642,7 +779,7 @@
     border-radius: 6px;
     padding: 7px 9px;
   }
-  .term-chip-row span { color: var(--navy); font-weight: 500; }
+  .term-chip-row span { color: var(--text); font-weight: 500; }
   .tc-placeholder-input {
     width: 100%;
     padding: 5px 7px;
@@ -650,20 +787,20 @@
     border-radius: 4px;
     font-family: 'DM Mono', monospace;
     font-size: 11px;
-    color: var(--navy);
-    background: white;
+    color: var(--text);
+    background: var(--surface);
     outline: none;
   }
   .tc-placeholder-input:focus { border-color: var(--navy); }
-  .tc-placeholder-input::placeholder { color: #B0AA9A; }
+  .tc-placeholder-input::placeholder { color: var(--text-faint); }
   .tc-category-select {
     padding: 5px 6px;
     border: 1px solid var(--amber-border);
     border-radius: 4px;
     font-family: 'DM Mono', monospace;
     font-size: 10.5px;
-    color: var(--navy);
-    background: white;
+    color: var(--text);
+    background: var(--surface);
     outline: none;
     flex-shrink: 0;
     max-width: 100px;
@@ -703,10 +840,10 @@
     gap: 8px;
     padding: 6px 8px;
     border-radius: 4px;
-    border: 1px solid #E2E8F0;
-    background: white;
+    border: 1px solid var(--border);
+    background: var(--surface);
   }
-  .candidate-row:hover { border-color: #CBD5E1; }
+  .candidate-row:hover { border-color: var(--border-strong); }
   .candidate-check {
     cursor: pointer;
     flex-shrink: 0;
@@ -716,8 +853,8 @@
     width: 15px;
     height: 15px;
     border-radius: 3px;
-    border: 1.5px solid #CBD5E1;
-    background: white;
+    border: 1.5px solid var(--border-strong);
+    background: var(--surface);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -751,7 +888,7 @@
     flex: 1;
     font-family: 'DM Mono', monospace;
     font-size: 12px;
-    color: var(--navy);
+    color: var(--text);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -759,8 +896,8 @@
   .candidate-count {
     font-family: 'DM Mono', monospace;
     font-size: 10px;
-    color: #94A3B8;
-    background: #F1F5F9;
+    color: var(--text-faint);
+    background: var(--surface-muted);
     padding: 1px 6px;
     border-radius: 10px;
     flex-shrink: 0;
@@ -769,7 +906,7 @@
   /* PROGRESS BAR */
   .redaction-meter {
     height: 3px;
-    background: #E2E8F0;
+    background: var(--border);
     position: relative;
     flex-shrink: 0;
   }
@@ -783,14 +920,13 @@
   /* SCROLLBAR */
   ::-webkit-scrollbar { width: 6px; height: 6px; }
   ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 3px; }
-  ::-webkit-scrollbar-thumb:hover { background: #94A3B8; }
+  ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text-faint); }
 
   /* RESPONSIVE */
   @media (max-width: 768px) {
     .main-layout { grid-template-columns: 1fr; }
-    .panel { border-right: none; border-bottom: 1px solid #CBD5E1; }
-    .action-grid { grid-template-columns: 1fr; }
+    .panel { border-right: none; border-bottom: 1px solid var(--border-strong); }
   }
 
   /* ANIMATION */
@@ -813,7 +949,12 @@
     <span class="brand-badge">DSGVO</span>
     <h1>Redact-o-Mat</h1>
   </div>
-  <div class="header-meta">100% CLIENT-SEITIG · KEINE DATENÜBERTRAGUNG · v1.0</div>
+  <div class="header-right">
+    <div class="header-meta">100% CLIENT-SEITIG · KEINE DATENÜBERTRAGUNG · v1.0</div>
+    <button id="themeToggle" onclick="toggleTheme()" title="Dunkles/helles Design umschalten" aria-label="Dunkles/helles Design umschalten">
+      <i data-lucide="moon" size="15"></i>
+    </button>
+  </div>
 </header>
 
 <!-- MAIN -->
@@ -839,12 +980,12 @@
     </div>
 
     <!-- Fortschrittsanzeige für sehr große Dokumente (schrittweises Rendern) -->
-    <div id="renderProgress" style="display:none; flex-direction:column; gap:6px; padding:10px 12px; background:#F1F5F9; border-radius:4px; margin-top:8px;">
-      <div style="display:flex; align-items:center; gap:8px; font-size:12px; color:var(--navy);">
+    <div id="renderProgress" style="display:none; flex-direction:column; gap:6px; padding:10px 12px; background:var(--surface-muted); border-radius:4px; margin-top:8px;">
+      <div style="display:flex; align-items:center; gap:8px; font-size:12px; color:var(--text);">
         <div class="spinner"></div>
         <span id="renderProgressText">Text wird angezeigt …</span>
       </div>
-      <div style="height:4px; background:#E2E8F0; border-radius:2px; overflow:hidden;">
+      <div style="height:4px; background:var(--border); border-radius:2px; overflow:hidden;">
         <div id="renderProgressBar" style="height:100%; width:0%; background:var(--navy); transition:width 0.1s linear;"></div>
       </div>
     </div>
@@ -865,7 +1006,7 @@
       <input type="file" id="fileUploadInput" accept=".txt,.docx,text/plain" style="display:none;" onchange="handleFileUpload(this.files)">
     </div>
 
-    <div id="uploadStatus" style="display:none; align-items:center; gap:8px; padding:8px 10px; margin-top:8px; background:#F1F5F9; border-radius:4px; font-size:12px; color:var(--navy);">
+    <div id="uploadStatus" style="display:none; align-items:center; gap:8px; padding:8px 10px; margin-top:8px; background:var(--surface-muted); border-radius:4px; font-size:12px; color:var(--text);">
       <div class="spinner"></div>
       <span id="uploadStatusText">Datei wird gelesen …</span>
     </div>
@@ -910,7 +1051,7 @@
     <!-- STATS BAR -->
     <div class="stats-bar" id="statsBar" style="display:none;">
       <div class="stat">
-        <div class="stat-dot" style="background:#CBD5E1"></div>
+        <div class="stat-dot" style="background:var(--border-strong)"></div>
         <span id="statTotal">0 Token</span>
       </div>
       <div class="stat">
@@ -934,9 +1075,10 @@
     <!-- AUTO DETECT -->
     <div class="action-section auto-detect-section">
       <h3>Erkannte Kandidaten</h3>
-      <p style="font-size:11px; color:#94A3B8; margin-bottom:8px; line-height:1.5;">
-        Automatisch gefundene Datums-, E-Mail- und Namensmuster. Ein Klick schwärzt/entschwärzt <strong>alle</strong> Vorkommen im Dokument.
+      <p style="font-size:11px; color:var(--text-faint); margin-bottom:8px; line-height:1.5;">
+        Automatisch gefundene Muster (Namen, Adressen, Kontaktdaten, IBAN …). Ein Klick schwärzt/entschwärzt <strong>alle</strong> Vorkommen im Dokument.
       </p>
+<<<<<<< HEAD
       <label style="display:flex; align-items:center; gap:7px; font-size:11.5px; color:var(--navy); margin-bottom:10px; padding:6px 8px; background:#F1F5F9; border-radius:4px; cursor:pointer;">
         <input type="checkbox" id="nerToggle" onchange="onNerToggle(this.checked)" style="margin:0;">
         <span style="flex:1;">Python-NER-Server für Namenserkennung nutzen</span>
@@ -955,6 +1097,34 @@
         <div class="spinner"></div>
         <span id="llmLoadingText">KI-Modell analysiert den Text …</span>
       </div>
+=======
+      <!-- Braucht lokal laufende Zusatzserver (siehe ner_server.py/presidio_server.py) —
+           für den Durchschnittsnutzer ohne diese Server irrelevant, daher eingeklappt.
+           Öffnet sich automatisch, falls beim letzten Besuch schon etwas aktiviert war. -->
+      <details id="advancedDetection" style="margin-bottom:10px; border:1px solid var(--border); border-radius:4px; background:var(--surface-muted);">
+        <summary style="padding:7px 8px; cursor:pointer; font-size:11.5px; font-weight:600; color:var(--text-secondary);">Erweiterte Erkennung (optional)</summary>
+        <div style="padding:2px 8px 8px;">
+          <label style="display:flex; align-items:center; gap:7px; font-size:11.5px; color:var(--text); margin-bottom:8px; padding:6px 8px; background:var(--surface); border-radius:4px; cursor:pointer;">
+            <input type="checkbox" id="nerToggle" onchange="onNerToggle(this.checked)" style="margin:0;">
+            <span style="flex:1;">Python-NER-Server für Namenserkennung nutzen</span>
+            <span id="nerStatus" class="ner-status ner-status-unknown" title="Serverstatus">●</span>
+          </label>
+          <div id="nerLoadingRow" style="display:none; align-items:center; gap:8px; padding:6px 8px; margin:-4px 0 8px; font-size:11.5px; color:var(--text);">
+            <div class="spinner"></div>
+            <span>NER-Server durchsucht den Text nach weiteren Namen …</span>
+          </div>
+          <label style="display:flex; align-items:center; gap:7px; font-size:11.5px; color:var(--text); padding:6px 8px; background:var(--surface); border-radius:4px; cursor:pointer;">
+            <input type="checkbox" id="presidioToggle" onchange="onPresidioToggle(this.checked)" style="margin:0;">
+            <span style="flex:1;">Presidio-Server nutzen (Orte, Organisationen, Kreditkarten, IPs, URLs, Krypto-Wallets …)</span>
+            <span id="presidioStatus" class="ner-status ner-status-unknown" title="Serverstatus">●</span>
+          </label>
+          <div id="presidioLoadingRow" style="display:none; align-items:center; gap:8px; padding:6px 8px; margin-top:8px; font-size:11.5px; color:var(--text);">
+            <div class="spinner"></div>
+            <span>Presidio-Server durchsucht den Text nach weiteren Kandidaten …</span>
+          </div>
+        </div>
+      </details>
+>>>>>>> 29002ace83c33424071c42ad28fe5e9756befd77
       <div style="display:flex; gap:8px; margin-bottom:10px;">
         <button class="btn btn-ghost" style="flex:1; justify-content:center;" onclick="toggleAllCandidates(true)">
           <i data-lucide="check-square" size="13"></i> Alle schwärzen
@@ -973,8 +1143,8 @@
       <h3>Eigene Begriffe</h3>
       <div style="display:flex; gap:6px; margin-bottom:10px;">
         <input id="customTermInput" type="text" placeholder="z.B. Musterstraße, Firma XY…"
-          style="flex:1; padding:7px 9px; border:1.5px solid #CBD5E1; border-radius:4px; font-family:'DM Mono',monospace; font-size:12px; color:var(--navy); outline:none;"
-          onfocus="this.style.borderColor='var(--navy)'" onblur="this.style.borderColor='#CBD5E1'"
+          style="flex:1; padding:7px 9px; border:1.5px solid var(--border-strong); border-radius:4px; font-family:'DM Mono',monospace; font-size:12px; color:var(--text); outline:none;"
+          onfocus="this.style.borderColor='var(--navy)'" onblur="this.style.borderColor='var(--border-strong)'"
           onkeydown="if(event.key==='Enter'){event.preventDefault(); addCustomTerm();}">
         <button class="btn btn-ghost btn-icon" title="Begriff hinzufügen" onclick="addCustomTerm()">
           <i data-lucide="plus" size="14"></i>
@@ -986,58 +1156,56 @@
       <button class="btn btn-amber" style="width:100%; justify-content:center;" onclick="redactCustomTerms()">
         <i data-lucide="target" size="13"></i> Eigene Begriffe schwärzen
       </button>
-      <div style="margin-top:12px; padding-top:10px; border-top:1px solid #E2E8F0;">
-        <label style="display:flex; align-items:flex-start; gap:7px; font-size:11.5px; color:var(--navy); cursor:pointer;">
+      <div style="margin-top:12px; padding-top:10px; border-top:1px solid var(--border);">
+        <label style="display:flex; align-items:flex-start; gap:7px; font-size:11.5px; color:var(--text); cursor:pointer;">
           <input type="checkbox" id="persistToggle" onchange="onPersistToggle(this.checked)" style="margin:2px 0 0;">
           <span>Begriffe dauerhaft in diesem Browser merken
-            <span style="display:block; color:#94A3B8; font-size:10.5px; line-height:1.4; margin-top:2px;">
+            <span style="display:block; color:var(--text-faint); font-size:10.5px; line-height:1.4; margin-top:2px;">
               Aus: Gelernte und eigene Begriffe (meist Namen) bleiben nur bis zum Schließen des Tabs erhalten. An: Sie werden unverschlüsselt im Browser gespeichert.
             </span>
           </span>
         </label>
-        <p id="termStorageInfo" style="font-family:'DM Mono',monospace; font-size:10.5px; color:#64748B; margin:8px 0;"></p>
-        <button class="btn btn-ghost" style="width:100%; justify-content:center;" onclick="clearRememberedTerms()">
-          <i data-lucide="trash-2" size="13"></i> Alle gemerkten Begriffe löschen
-        </button>
+        <p id="termStorageInfo" style="font-family:'DM Mono',monospace; font-size:10.5px; color:var(--text-muted); margin:8px 0;"></p>
+        <div style="display:flex; gap:6px;">
+          <button class="btn btn-ghost" style="flex:1; justify-content:center;" onclick="clearRememberedTerms()">
+            <i data-lucide="trash-2" size="13"></i> Löschen
+          </button>
+          <button class="btn btn-ghost" style="flex:1; justify-content:center;" onclick="downloadDictionary()" title="dictionary.json inkl. gelernter Begriffe herunterladen — kein Dokument-Export, sondern eine Sicherung der Begriffsliste selbst">
+            <i data-lucide="book-open" size="13"></i> Wörterbuch sichern
+          </button>
+        </div>
       </div>
     </div>
 
     <!-- EXPORT -->
     <div class="action-section">
       <h3>Export</h3>
-      <div style="margin-bottom:10px;">
-        <label style="font-size:11px; color:#94A3B8; display:block; margin-bottom:4px;">Not-Fallback (nur falls einem Token ausnahmsweise keine Kategorie zugeordnet werden kann)</label>
+      <button class="btn btn-primary" style="width:100%; justify-content:center; padding:12px; font-size:13.5px; margin-bottom:6px;" onclick="showExportOverlay()">
+        <i data-lucide="file-down" size="16"></i> Als PDF exportieren
+      </button>
+      <p style="font-size:10.5px; color:var(--text-faint); text-align:center; margin-bottom:10px;">Mit echten Schwärzungsbalken, bereit zum Weitergeben</p>
+
+      <details style="border:1px solid var(--border); border-radius:4px; margin-bottom:10px;">
+        <summary style="padding:7px 8px; cursor:pointer; font-size:11.5px; font-weight:600; color:var(--text-secondary);">Weitere Formate</summary>
+        <div style="padding:2px 8px 8px; display:flex; flex-direction:column; gap:6px;">
+          <button class="btn btn-ghost" style="justify-content:flex-start;" onclick="copyText()">
+            <i data-lucide="clipboard-copy" size="13"></i> Text kopieren <span class="shortcut-hint">Strg+C</span>
+          </button>
+          <button class="btn btn-ghost" style="justify-content:flex-start;" onclick="downloadTxt()">
+            <i data-lucide="download" size="13"></i> Als .txt herunterladen
+          </button>
+          <button class="btn btn-ghost" style="justify-content:flex-start;" onclick="copyTextXXX()">
+            <i data-lucide="clipboard" size="13"></i> Text mit [XXX] statt Kategorie-Label kopieren
+          </button>
+        </div>
+      </details>
+
+      <div>
+        <label style="font-size:11px; color:var(--text-faint); display:block; margin-bottom:4px;">Not-Fallback (nur falls einem Token ausnahmsweise keine Kategorie zugeordnet werden kann)</label>
         <input type="text" id="defaultPlaceholderInput" value="[ANONYMISIERT]"
-          style="width:100%; padding:6px 8px; border:1.5px solid #CBD5E1; border-radius:4px; font-family:'DM Mono',monospace; font-size:12px; color:var(--navy); outline:none;"
-          onfocus="this.style.borderColor='var(--navy)'" onblur="this.style.borderColor='#CBD5E1'"
+          style="width:100%; padding:6px 8px; border:1.5px solid var(--border-strong); border-radius:4px; font-family:'DM Mono',monospace; font-size:12px; color:var(--text); outline:none;"
+          onfocus="this.style.borderColor='var(--navy)'" onblur="this.style.borderColor='var(--border-strong)'"
           oninput="setDefaultPlaceholder(this.value)">
-      </div>
-      <div class="action-grid">
-        <button class="action-btn-large" onclick="copyText()">
-          <i data-lucide="clipboard-copy" size="18"></i>
-          <div class="abl-title">Text kopieren</div>
-          <div class="abl-desc">Mit Platzhaltern statt Original<br><span class="shortcut-hint">Strg+C</span></div>
-        </button>
-        <button class="action-btn-large" onclick="showExportOverlay()">
-          <i data-lucide="file-down" size="18"></i>
-          <div class="abl-title">Als PDF</div>
-          <div class="abl-desc">Professioneller PDF-Export mit echten Schwärzungsbalken</div>
-        </button>
-        <button class="action-btn-large" onclick="copyTextXXX()">
-          <i data-lucide="clipboard" size="18"></i>
-          <div class="abl-title">Mit [XXX]</div>
-          <div class="abl-desc">Alternative Platzhalter-Kennzeichnung</div>
-        </button>
-        <button class="action-btn-large" onclick="downloadTxt()">
-          <i data-lucide="download" size="18"></i>
-          <div class="abl-title">Als .txt</div>
-          <div class="abl-desc">Textdatei mit Platzhaltern herunterladen</div>
-        </button>
-        <button class="action-btn-large" onclick="downloadDictionary()">
-          <i data-lucide="book-open" size="18"></i>
-          <div class="abl-title">Wörterbuch sichern</div>
-          <div class="abl-desc">dictionary.json inkl. gelernter Begriffe herunterladen</div>
-        </button>
       </div>
     </div>
 
@@ -1049,16 +1217,41 @@
   </div>
 </div>
 
+<!-- ONBOARDING (einmalig beim ersten Besuch, siehe initOnboarding()) -->
+<div id="onboardingOverlay">
+  <div class="export-card" style="width:420px;">
+    <h3>So funktioniert Redact-o-Mat</h3>
+    <p style="margin-bottom:16px;">Persönliche Daten in drei Schritten aus einem Dokument entfernen — läuft komplett im Browser, nichts wird hochgeladen.</p>
+    <div style="display:flex; flex-direction:column; gap:14px; margin-bottom:22px;">
+      <div class="onboarding-step">
+        <span class="onboarding-step-num">1</span>
+        <div><strong>Text einfügen</strong><p>Tippen, einfügen oder eine .txt-/.docx-Datei hochladen — dann „Analyse starten".</p></div>
+      </div>
+      <div class="onboarding-step">
+        <span class="onboarding-step-num">2</span>
+        <div><strong>Prüfen</strong><p>Sichere Treffer (E-Mail, Telefon, IBAN, Datum) sind schon geschwärzt. Bei Namen, Orten & Co. selbst entscheiden — anklicken schwärzt/entschwärzt.</p></div>
+      </div>
+      <div class="onboarding-step">
+        <span class="onboarding-step-num">3</span>
+        <div><strong>Herunterladen</strong><p>Als PDF mit echten Schwärzungsbalken exportieren, oder Text kopieren.</p></div>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="dismissOnboarding()">Los geht's</button>
+    </div>
+  </div>
+</div>
+
 <!-- EXPORT OVERLAY -->
 <div id="exportOverlay">
   <div class="export-card">
     <h3>PDF exportieren</h3>
     <p>Erzeugt ein PDF-Dokument mit echten schwarzen Schwärzungsbalken (keine Metadaten des Originaltexts in den geschwärzten Bereichen). Kann direkt archiviert oder weitergegeben werden.</p>
     <div style="margin-bottom:16px;">
-      <label style="font-size:12px; font-weight:600; color:var(--navy-light); display:block; margin-bottom:6px;">Dokumenttitel (optional)</label>
+      <label style="font-size:12px; font-weight:600; color:var(--text-secondary); display:block; margin-bottom:6px;">Dokumenttitel (optional)</label>
       <input id="pdfTitle" type="text" placeholder="z.B. Bescheid vom 24.02.2026"
-        style="width:100%; padding:8px 10px; border:1.5px solid #CBD5E1; border-radius:4px; font-family:'DM Mono',monospace; font-size:12px; color:var(--navy); outline:none;"
-        onfocus="this.style.borderColor='var(--navy)'" onblur="this.style.borderColor='#CBD5E1'">
+        style="width:100%; padding:8px 10px; border:1.5px solid var(--border-strong); border-radius:4px; font-family:'DM Mono',monospace; font-size:12px; color:var(--text); outline:none;"
+        onfocus="this.style.borderColor='var(--navy)'" onblur="this.style.borderColor='var(--border-strong)'">
     </div>
     <div class="btn-row">
       <button class="btn btn-ghost" onclick="hideExportOverlay()">Abbrechen</button>
@@ -1099,14 +1292,36 @@ let learnedTerms = new Set(); // Begriffe, die durch Schwärzen automatisch "gel
 // Kategorie-basierte, konsistente Nummerierung (PERSON 1, PERSON 2, ADRESSE 1, …)
 // Gilt bewusst nur PRO DOKUMENT — wird bei jeder neuen Analyse zurückgesetzt.
 // ---------------------------
+<<<<<<< HEAD
 const CATEGORY_OPTIONS = ['PERSON', 'ADRESSE', 'E-MAIL', 'TELEFON', 'IBAN', 'DATUM', 'BEHÖRDE', 'FIRMA', 'ORT', 'SONSTIGES'];
+=======
+const CATEGORY_OPTIONS = [
+  'PERSON', 'ADRESSE', 'ORT', 'ORGANISATION', 'BEHÖRDE', 'FIRMA', 'SOFTWARE',
+  'E-MAIL', 'TELEFON', 'IBAN', 'KREDITKARTE', 'IP-ADRESSE', 'URL', 'KRYPTO-WALLET',
+  'DATUM', 'SONSTIGES'
+];
+>>>>>>> 29002ace83c33424071c42ad28fe5e9756befd77
 const CANDIDATE_CATEGORY_MAP = {
   name: 'PERSON', address: 'ADRESSE', email: 'E-MAIL',
-  phone: 'TELEFON', iban: 'IBAN', date: 'DATUM'
+  phone: 'TELEFON', iban: 'IBAN', date: 'DATUM',
+  // ab hier: nur über den Presidio-Server erreichbare Kategorien (siehe unten)
+  location: 'ORT', organization: 'ORGANISATION',
+  creditcard: 'KREDITKARTE', ip: 'IP-ADRESSE', url: 'URL', crypto: 'KRYPTO-WALLET'
 };
+<<<<<<< HEAD
 // Wirksame Kategorie eines Kandidaten: die im Dropdown gewählte, sonst der Standard je Typ.
 function candidateCategory(cand) {
   return cand.category || CANDIDATE_CATEGORY_MAP[cand.type];
+=======
+
+// Weist jedem Kandidaten EINMALIG eine Kategorie zu (aus dem Erkennungstyp
+// abgeleitet, z.B. "name" -> PERSON) — änderbar über das Kategorie-Dropdown in der
+// Kandidatenliste (siehe setCandidateCategory()). Bereits gesetzte Kategorien
+// (z.B. nach einer manuellen Änderung durch die Nutzerin/den Nutzer) bleiben
+// beim erneuten Zusammenbauen der Liste (NER-/Presidio-Nachlieferung) erhalten.
+function ensureCandidateCategories(list) {
+  list.forEach(c => { if (!c.category) c.category = CANDIDATE_CATEGORY_MAP[c.type] || 'SONSTIGES'; });
+>>>>>>> 29002ace83c33424071c42ad28fe5e9756befd77
 }
 let categoryCounters = {};    // z.B. { PERSON: 2, ADRESSE: 1 }
 let categoryAssignments = new Map(); // "KATEGORIE|normalisierter text" -> "[KATEGORIE N]"
@@ -1141,9 +1356,35 @@ function peekAutoLabel(category, text) {
 }
 
 // ---------------------------
+// Server-Erreichbarkeit: relativer Pfad ZUERST, feste Adresse als Rückfall
+// ---------------------------
+// Läuft die Seite über nginx (z.B. im Docker-Setup), reicht ein relativer Pfad wie
+// "/health" — nginx leitet ihn intern an den richtigen Server weiter (siehe
+// nginx.conf), es muss also nach außen nur EIN Port (8080) offen sein. Wird
+// index.html dagegen direkt geöffnet oder über einen einfachen Webserver OHNE
+// diesen Proxy bereitgestellt (der bisherige, weiterhin unterstützte Weg —
+// ner_server.py/presidio_server.py einfach separat lokal starten), schlägt der
+// relative Pfad fehl und es wird automatisch auf die feste Adresse
+// http://127.0.0.1:PORT zurückgefallen. Beide Wege funktionieren also nebeneinander,
+// ohne dass man sich festlegen muss.
+async function fetchFromFirstReachable(urls, options, timeoutMs) {
+  for (const url of urls) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), timeoutMs);
+      const res = await fetch(url, { ...options, signal: controller.signal });
+      clearTimeout(timeout);
+      if (res.ok) return res;
+    } catch (e) { /* nächste Adresse versuchen */ }
+  }
+  return null;
+}
+
+// ---------------------------
 // Python-NER-Server (optional, siehe ner_server.py)
 // ---------------------------
-const NER_SERVER_URL = 'http://127.0.0.1:5001/detect-names';
+const NER_HEALTH_URLS = ['/health', 'http://127.0.0.1:5001/health'];
+const NER_DETECT_URLS = ['/detect-names', 'http://127.0.0.1:5001/detect-names'];
 let useNerServer = false;
 let nerServerStatus = 'unknown'; // 'unknown' | 'ok' | 'error'
 
@@ -1162,15 +1403,11 @@ function onNerToggle(checked) {
 // eine spätere Analyse nicht unnötig lange auf einen toten Server wartet.
 async function checkNerServerHealth() {
   const statusEl = document.getElementById('nerStatus');
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 2500);
-    const res = await fetch(NER_SERVER_URL.replace('/detect-names', '/health'), { signal: controller.signal });
-    clearTimeout(timeout);
-    if (!res.ok) throw new Error('HTTP ' + res.status);
+  const res = await fetchFromFirstReachable(NER_HEALTH_URLS, {}, 2500);
+  if (res) {
     nerServerStatus = 'ok';
     if (statusEl) { statusEl.className = 'ner-status ner-status-ok'; statusEl.title = 'NER-Server erreichbar'; }
-  } catch (e) {
+  } else {
     nerServerStatus = 'error';
     if (statusEl) { statusEl.className = 'ner-status ner-status-error'; statusEl.title = 'NER-Server nicht erreichbar — läuft "python ner_server.py"?'; }
   }
@@ -1187,16 +1424,12 @@ async function runNerDetection(text) {
   const loadingRow = document.getElementById('nerLoadingRow');
   if (loadingRow) loadingRow.style.display = 'flex';
   try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 15000);
-    const res = await fetch(NER_SERVER_URL, {
+    const res = await fetchFromFirstReachable(NER_DETECT_URLS, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text }),
-      signal: controller.signal
-    });
-    clearTimeout(timeout);
-    if (!res.ok) throw new Error('HTTP ' + res.status);
+      body: JSON.stringify({ text })
+    }, 15000);
+    if (!res) throw new Error('kein NER-Server erreichbar');
     const data = await res.json();
     nerServerStatus = 'ok';
     if (statusEl) { statusEl.className = 'ner-status ner-status-ok'; statusEl.title = 'NER-Server erreichbar'; }
@@ -1238,6 +1471,7 @@ function mergeNerNamesIntoCandidates(names) {
     if (a.type !== b.type) return a.type.localeCompare(b.type);
     return a.text.localeCompare(b.text, 'de');
   });
+  ensureCandidateCategories(candidates);
   markCandidatesAsSuggested();
   renderCandidatesList();
   tokens.forEach(t => { if (t.type === 'word') updateTokenSpanClass(t); });
@@ -1245,6 +1479,7 @@ function mergeNerNamesIntoCandidates(names) {
 }
 
 // ---------------------------
+<<<<<<< HEAD
 // Lokales KI-Modell (optional, OpenAI-kompatible API — z.B. LocalAI)
 // ---------------------------
 // Erreichbar über den nginx-Proxy derselben Herkunft (siehe nginx.conf), daher ist keine
@@ -1471,14 +1706,139 @@ function mergeLlmItemsIntoCandidates(items) {
   });
 
   if (newKeys.size === 0) return 0;
+=======
+// Presidio-Server (optional, siehe presidio_server.py) — dritte, unabhängige
+// Erkennungsquelle NEBEN der JS-Heuristik und dem separaten NER-Server. Liefert
+// über Namen hinaus u.a. Orte, Organisationen, Kreditkarten, IP-Adressen, URLs
+// und Krypto-Wallet-Adressen; Presidio-Kategorie -> interner Kandidatentyp:
+// ---------------------------
+const PRESIDIO_HEALTH_URLS = ['/presidio-health', 'http://127.0.0.1:5002/presidio-health'];
+const PRESIDIO_ANALYZE_URLS = ['/analyze', 'http://127.0.0.1:5002/analyze'];
+const PRESIDIO_TYPE_MAP = {
+  PERSON: 'name', LOCATION: 'location', ORGANIZATION: 'organization', DATE_TIME: 'date',
+  EMAIL_ADDRESS: 'email', PHONE_NUMBER: 'phone', IBAN_CODE: 'iban',
+  CREDIT_CARD: 'creditcard', IP_ADDRESS: 'ip', URL: 'url', CRYPTO: 'crypto'
+};
+let usePresidioServer = false;
+let presidioServerStatus = 'unknown'; // 'unknown' | 'ok' | 'error'
+
+function onPresidioToggle(checked) {
+  usePresidioServer = checked;
+  try { localStorage.setItem('redactomat_use_presidio', checked ? '1' : '0'); } catch (e) {}
+  if (checked) checkPresidioServerHealth();
+}
+
+async function checkPresidioServerHealth() {
+  const statusEl = document.getElementById('presidioStatus');
+  const res = await fetchFromFirstReachable(PRESIDIO_HEALTH_URLS, {}, 2500);
+  if (res) {
+    presidioServerStatus = 'ok';
+    if (statusEl) { statusEl.className = 'ner-status ner-status-ok'; statusEl.title = 'Presidio-Server erreichbar'; }
+  } else {
+    presidioServerStatus = 'error';
+    if (statusEl) { statusEl.className = 'ner-status ner-status-error'; statusEl.title = 'Presidio-Server nicht erreichbar — läuft "python presidio_server.py"?'; }
+  }
+}
+
+// Schickt den vollständigen Text an den lokalen Presidio-Server und mischt die
+// gefundenen Entitäten (jeweils als Zeichen-Spanne, nicht Token-Index) als
+// zusätzliche Kandidaten ein. Läuft wie runNerDetection() im Hintergrund NACH
+// der schnellen JS-Analyse, blockiert die Oberfläche also nicht.
+async function runPresidioDetection(text) {
+  if (!usePresidioServer) return;
+  const statusEl = document.getElementById('presidioStatus');
+  const loadingRow = document.getElementById('presidioLoadingRow');
+  if (loadingRow) loadingRow.style.display = 'flex';
+  try {
+    const res = await fetchFromFirstReachable(PRESIDIO_ANALYZE_URLS, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text })
+    }, 20000);
+    if (!res) throw new Error('kein Presidio-Server erreichbar');
+    const data = await res.json();
+    presidioServerStatus = 'ok';
+    if (statusEl) { statusEl.className = 'ner-status ner-status-ok'; statusEl.title = 'Presidio-Server erreichbar'; }
+
+    const entities = Array.isArray(data.entities) ? data.entities : [];
+    if (entities.length === 0) return;
+    mergePresidioEntitiesIntoCandidates(entities);
+  } catch (e) {
+    presidioServerStatus = 'error';
+    if (statusEl) { statusEl.className = 'ner-status ner-status-error'; statusEl.title = 'Presidio-Server nicht erreichbar — läuft "python presidio_server.py"?'; }
+    console.warn('Presidio-Server nicht erreichbar:', e);
+  } finally {
+    if (loadingRow) loadingRow.style.display = 'none';
+  }
+}
+
+// Findet alle Wort-Token-IDs, die sich mit der Zeichen-Spanne [start, end) über-
+// schneiden. tokens ist immer in Dokumentreihenfolge (nie umsortiert) — daher
+// per Binärsuche der erste in Frage kommende Token, dann linear weiter, bis die
+// Token-Startposition die Spanne verlässt (O(log n + Trefferbreite) statt O(n)).
+function findTokenIdsInRange(start, end) {
+  let lo = 0, hi = tokens.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (tokens[mid].end <= start) lo = mid + 1; else hi = mid;
+  }
+  const ids = [];
+  for (let i = lo; i < tokens.length && tokens[i].start < end; i++) {
+    if (tokens[i].type === 'word') ids.push(tokens[i].id);
+  }
+  return ids;
+}
+
+function mergePresidioEntitiesIntoCandidates(entities) {
+  const map = new Map(candidates.map(c => [c.key, c]));
+  let addedCount = 0;
+
+  entities.forEach(ent => {
+    const type = PRESIDIO_TYPE_MAP[ent.entity_type];
+    if (!type) return; // unbekannter Presidio-Typ (Sicherheitsnetz — der Server filtert bereits)
+    const idArray = findTokenIdsInRange(ent.start, ent.end);
+    if (idArray.length === 0) return;
+    const text = joinTokensCleanEnd(idArray);
+    if (!text) return;
+    const key = type + '|' + text.toLowerCase();
+
+    const existing = map.get(key);
+    // Dieselbe Textstelle wurde ggf. schon von der JS-Heuristik (oder einer
+    // vorherigen Presidio-Entität mit gleichem Text) erfasst — dann NICHT nochmal
+    // mitzählen, sonst verdoppelt sich die "N×"-Vorkommenanzeige ohne echten Grund.
+    if (existing && idArray.every(id => existing.tokenIds.includes(id))) return;
+
+    if (!existing) { map.set(key, { key, type, text, tokenIds: [], occurrences: 0 }); addedCount++; }
+    map.get(key).tokenIds.push(...idArray);
+    map.get(key).occurrences++;
+  });
+
+  if (addedCount === 0) return; // alles bereits durch Heuristik/JS/NER gefunden
+
+>>>>>>> 29002ace83c33424071c42ad28fe5e9756befd77
   candidates = Array.from(map.values()).sort((a, b) => {
     if (a.type !== b.type) return a.type.localeCompare(b.type);
     return a.text.localeCompare(b.text, 'de');
   });
+<<<<<<< HEAD
   markCandidatesAsSuggested();
   renderCandidatesList();
   tokens.forEach(t => { if (t.type === 'word') updateTokenSpanClass(t); });
   return newKeys.size;
+=======
+  ensureCandidateCategories(candidates);
+  markCandidatesAsSuggested();
+  renderCandidatesList();
+  tokens.forEach(t => { if (t.type === 'word') updateTokenSpanClass(t); });
+
+  // Auch neu nachgelieferte Treffer aus technisch eindeutigen Kategorien (z.B. ein
+  // Datumsformat, das die schnelle JS-Heuristik übersehen hat) direkt schwärzen —
+  // aus Nutzersicht soll es keinen Unterschied machen, WELCHE Erkennungsquelle einen
+  // sicheren Treffer zuerst gefunden hat.
+  const autoRedactedCount = autoRedactSafeCandidates();
+  const autoNote = autoRedactedCount > 0 ? ` (${autoRedactedCount} davon automatisch geschwärzt)` : '';
+  showToast(`${addedCount} zusätzliche(r) Kandidat(en) per Presidio erkannt${autoNote}.`, 'sparkles');
+>>>>>>> 29002ace83c33424071c42ad28fe5e9756befd77
 }
 
 async function loadDictionary() {
@@ -1665,8 +2025,66 @@ function rebuildTokenIndex() {
 // ===========================
 // INIT LUCIDE
 // ===========================
+// ===========================
+// ONBOARDING (einmalig beim ersten Besuch)
+// ===========================
+const ONBOARDING_SEEN_KEY = 'redactomat_onboarding_seen';
+
+function initOnboarding() {
+  let seen = false;
+  try { seen = localStorage.getItem(ONBOARDING_SEEN_KEY) === '1'; } catch (e) { /* Speicher nicht verfügbar — Tour dann bei jedem Besuch */ }
+  if (seen) return;
+  const overlay = document.getElementById('onboardingOverlay');
+  if (overlay) overlay.classList.add('show');
+}
+
+function dismissOnboarding() {
+  document.getElementById('onboardingOverlay').classList.remove('show');
+  try { localStorage.setItem(ONBOARDING_SEEN_KEY, '1'); } catch (e) {}
+}
+
+// ===========================
+// DARK MODE
+// ===========================
+// Die Wahl (falls getroffen) steckt im data-theme-Attribut von <html> — bereits
+// synchron im <head> gesetzt (siehe dortiges Inline-Skript), damit beim Laden kein
+// falsches Theme kurz aufblitzt. Ohne getroffene Wahl gilt die Systemeinstellung.
+function getEffectiveTheme() {
+  const explicit = document.documentElement.getAttribute('data-theme');
+  if (explicit === 'dark' || explicit === 'light') return explicit;
+  return (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
+}
+
+// Zeigt das Icon der Aktion, die ein Klick auslösen würde (Mond = "zu Dunkel
+// wechseln", Sonne = "zu Hell wechseln") — nicht den aktuellen Zustand.
+function updateThemeIcon() {
+  const btn = document.getElementById('themeToggle');
+  if (!btn) return;
+  const icon = getEffectiveTheme() === 'dark' ? 'sun' : 'moon';
+  btn.innerHTML = `<i data-lucide="${icon}" size="15"></i>`;
+  if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function toggleTheme() {
+  const next = getEffectiveTheme() === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  try { localStorage.setItem('redactomat_theme', next); } catch (e) {}
+  updateThemeIcon();
+}
+
+// Folgt einer Änderung der Systemeinstellung, SOLANGE keine eigene Wahl getroffen
+// wurde (kein data-theme gesetzt) — die CSS-Regel dafür reagiert automatisch,
+// hier wird nur das Icon synchron mitgezogen.
+if (window.matchMedia) {
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    if (!document.documentElement.getAttribute('data-theme')) updateThemeIcon();
+  });
+}
+
 document.addEventListener('DOMContentLoaded', () => {
+  updateThemeIcon();
   lucide.createIcons();
+  initOnboarding();
   initTermPersistence();
   loadCustomTerms();
   renderCustomTermsList();
@@ -1695,6 +2113,7 @@ document.addEventListener('DOMContentLoaded', () => {
   } catch (e) {}
 
   try {
+<<<<<<< HEAD
     if (localStorage.getItem('redactomat_use_llm') === '1') {
       useLocalLlm = true;
       const cb = document.getElementById('llmToggle');
@@ -1702,6 +2121,23 @@ document.addEventListener('DOMContentLoaded', () => {
       checkLlmHealth();
     }
   } catch (e) {}
+=======
+    const savedUsePresidio = localStorage.getItem('redactomat_use_presidio');
+    if (savedUsePresidio === '1') {
+      usePresidioServer = true;
+      const cb = document.getElementById('presidioToggle');
+      if (cb) cb.checked = true;
+      checkPresidioServerHealth();
+    }
+  } catch (e) {}
+
+  // "Erweiterte Erkennung" nicht eingeklappt lassen, wenn dort schon etwas aktiv ist —
+  // sonst wirkt die eigene Einstellung beim nächsten Besuch wie spurlos verschwunden.
+  if (useNerServer || usePresidioServer) {
+    const details = document.getElementById('advancedDetection');
+    if (details) details.open = true;
+  }
+>>>>>>> 29002ace83c33424071c42ad28fe5e9756befd77
 });
 
 // ===========================
@@ -1782,6 +2218,20 @@ function nextFrame() {
   return new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 }
 
+// Springt nach der Analyse zu den Schwärzungsoptionen (erkannte Kandidaten,
+// "Alle schwärzen"/"Alle aufheben") — besonders auf schmalen Bildschirmen, wo
+// die Panels untereinander statt nebeneinander stehen, kann man beim Eintippen
+// oder Hochladen eines langen Texts weit nach unten gescrollt sein; ohne diesen
+// Sprung blieben die Optionen dann außerhalb des sichtbaren Bereichs.
+// scrollIntoView() kümmert sich automatisch um JEDEN scrollbaren Vorfahren
+// (Fenster UND ggf. innen liegende overflow-Container), nicht nur um einen.
+function scrollToRedactionOptions() {
+  const section = document.querySelector('.auto-detect-section');
+  if (section && typeof section.scrollIntoView === 'function') {
+    section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+}
+
 async function startAnalysis() {
   const text = document.getElementById('inputTextarea').value.trim();
   if (!text) {
@@ -1805,15 +2255,26 @@ async function startAnalysis() {
   // Chunk-Renderings bei großen Dokumenten (siehe renderEditor()).
   await renderEditor();
 
+  // Technisch eindeutige Kategorien (E-Mail, Telefon, IBAN, Datum) direkt schwärzen,
+  // damit der Durchschnittsnutzer nicht erst "Alle schwärzen" klicken muss — Namen/
+  // Orte/Organisationen/Adressen bleiben bewusst nur Vorschlag (siehe AUTO_REDACT_TYPES).
+  const autoRedactedCount = autoRedactSafeCandidates();
+
   hideAnalysisProgress();
   if (btn) btn.disabled = false;
   const seconds = (((typeof performance !== 'undefined') ? performance.now() : Date.now()) - startedAt) / 1000;
-  showToast(`Analyse abgeschlossen (${seconds.toFixed(1)}s, ${candidates.length} Kandidat${candidates.length === 1 ? '' : 'en'} gefunden).`, 'check-circle-2');
+  const autoNote = autoRedactedCount > 0 ? `, ${autoRedactedCount} davon automatisch geschwärzt` : '';
+  showToast(`Analyse abgeschlossen (${seconds.toFixed(1)}s, ${candidates.length} Kandidat${candidates.length === 1 ? '' : 'en'} gefunden${autoNote}).`, 'check-circle-2');
+  scrollToRedactionOptions();
 
   // Läuft im Hintergrund weiter, blockiert die Oberfläche nicht — die schnelle
   // Heuristik ist sofort sichtbar, NER-Treffer ergänzen die Liste kurz danach.
   if (useNerServer) runNerDetection(text);
+<<<<<<< HEAD
   if (useLocalLlm) runLlmDetection(text, generation);
+=======
+  if (usePresidioServer) runPresidioDetection(text);
+>>>>>>> 29002ace83c33424071c42ad28fe5e9756befd77
 }
 
 function tokenize(text) {
@@ -1831,7 +2292,9 @@ function tokenize(text) {
     if (/^\r?\n$/.test(t)) type = 'newline';
     else if (/^\s+$/.test(t)) type = 'whitespace';
 
-    tokens.push({ id: id++, text: t, type, redacted: false, suggested: false });
+    // start/end (Zeichenversatz im Originaltext) werden für die Zuordnung von
+    // Presidio-Treffern gebraucht — Presidio liefert Zeichenspannen, keine Token-Indizes.
+    tokens.push({ id: id++, text: t, type, redacted: false, suggested: false, start: match.index, end: match.index + t.length });
   }
   rebuildTokenIndex();
 
@@ -2303,7 +2766,14 @@ const CANDIDATE_TYPE_META = {
   name:    { label: 'Name',     icon: 'user' },
   phone:   { label: 'Telefon',  icon: 'phone' },
   iban:    { label: 'IBAN',     icon: 'credit-card' },
-  address: { label: 'Adresse',  icon: 'map-pin' }
+  address: { label: 'Adresse',  icon: 'map-pin' },
+  // ab hier: nur über den Presidio-Server erreichbare Kandidatentypen (siehe unten)
+  location:     { label: 'Ort',           icon: 'compass' },
+  organization: { label: 'Organisation',  icon: 'building-2' },
+  creditcard:   { label: 'Kreditkarte',   icon: 'wallet' },
+  ip:           { label: 'IP-Adresse',    icon: 'network' },
+  url:          { label: 'URL',           icon: 'link' },
+  crypto:       { label: 'Krypto-Wallet', icon: 'bitcoin' }
 };
 
 function detectCandidates() {
@@ -2341,6 +2811,7 @@ function detectCandidates() {
     if (a.type !== b.type) return a.type.localeCompare(b.type);
     return a.text.localeCompare(b.text, 'de');
   });
+  ensureCandidateCategories(candidates);
 }
 
 function addCandidate(map, type, tokenIds, text) {
@@ -2786,7 +3257,11 @@ function renderCandidatesList() {
   candidates.forEach(cand => {
     const state = getCandidateState(cand);
     const meta = CANDIDATE_TYPE_META[cand.type];
+<<<<<<< HEAD
     const preview = peekAutoLabel(candidateCategory(cand), cand.text);
+=======
+    const preview = peekAutoLabel((cand.category || 'SONSTIGES'), cand.text);
+>>>>>>> 29002ace83c33424071c42ad28fe5e9756befd77
     const key = escapeHtml(cand.key); // Schlüssel enthält Text aus dem Dokument — nur als Attribut-Wert, nie als JS
     const row = document.createElement('div');
     row.className = 'candidate-row-wrap';
@@ -2796,17 +3271,25 @@ function renderCandidatesList() {
           data-key="${key}" title="Schwärzung für alle Vorkommen umschalten">
           <span class="cc-box"></span>
         </span>
-        <i data-lucide="${meta.icon}" size="12" style="flex-shrink:0; color:#94A3B8;"></i>
+        <i data-lucide="${meta.icon}" size="12" style="flex-shrink:0; color:var(--text-faint);"></i>
         <span class="candidate-text" title="${escapeHtml(cand.text)}">${escapeHtml(cand.text)}</span>
         ${cand.source === 'ai' ? '<span class="candidate-ai" title="Vom lokalen KI-Modell vorgeschlagen">KI</span>' : ''}
         ${cand.occurrences > 1 ? `<span class="candidate-count">${cand.occurrences}×</span>` : ''}
       </div>
       <div style="display:flex; gap:6px;">
+<<<<<<< HEAD
         <select class="tc-category-select" data-key="${key}" title="Platzhalter-Kategorie (bestimmt die automatische Bezeichnung)">
           ${CATEGORY_OPTIONS.map(cat => `<option value="${cat}" ${cat === candidateCategory(cand) ? 'selected' : ''}>${cat}</option>`).join('')}
         </select>
         <input type="text" class="tc-placeholder-input" placeholder="Automatisch: ${escapeHtml(preview)}"
           data-key="${key}" value="${escapeHtml(cand.replacement || '')}" style="flex:1; min-width:0;">
+=======
+        <select class="tc-category-select" data-key="${key}" title="Kategorie für automatische Nummerierung">
+          ${CATEGORY_OPTIONS.map(cat => `<option value="${cat}" ${cat === cand.category ? 'selected' : ''}>${cat}</option>`).join('')}
+        </select>
+        <input type="text" class="tc-placeholder-input" placeholder="Automatisch: ${escapeHtml(preview)}"
+          data-key="${key}" value="${escapeHtml(cand.replacement || '')}" style="flex:1;">
+>>>>>>> 29002ace83c33424071c42ad28fe5e9756befd77
       </div>
     `;
     container.appendChild(row);
@@ -2830,13 +3313,41 @@ function setupCandidateListEvents() {
     const select = e.target.closest('.tc-category-select');
     if (select && select.dataset.key !== undefined) setCandidateCategory(select.dataset.key, select.value);
   });
+<<<<<<< HEAD
+=======
+}
+
+// Ändert die Kategorie eines Kandidaten (z.B. eine als "Organisation" erkannte
+// Behörde auf "Behörde" umstellen). Betrifft nur DIESEN einen Kandidaten (nicht
+// alle Kandidaten desselben Erkennungstyps) — bereits geschwärzte Vorkommen
+// bekommen sofort den neuen Platzhalter zugewiesen (neue oder bestehende Nummer
+// je nachdem, ob diese Kategorie+Text-Kombination schon einmal vergeben wurde).
+function setCandidateCategory(key, value) {
+  const cand = candidates.find(c => c.key === key);
+  if (!cand) return;
+  cand.category = value;
+  renderCandidatesList(); // Vorschau-Text im Platzhalter-Feld aktualisieren
+  const isAnyRedacted = cand.tokenIds.some(id => { const t = tokenById.get(id); return t && t.redacted; });
+  if (!isAnyRedacted) return;
+  const placeholder = (cand.replacement && cand.replacement.trim()) || getAutoLabel(cand.category, cand.text);
+  cand.tokenIds.forEach(id => {
+    const t = tokenById.get(id);
+    if (!t || !t.redacted) return;
+    tokenPlaceholder.set(t.id, placeholder);
+    updateTokenSpanClass(t);
+  });
+>>>>>>> 29002ace83c33424071c42ad28fe5e9756befd77
 }
 
 // Zieht den Platzhalter aller bereits geschwärzten Vorkommen nach (eigener Text hat Vorrang
 // vor der automatischen Bezeichnung der gewählten Kategorie).
 function refreshCandidatePlaceholder(cand) {
   const isAnyRedacted = cand.tokenIds.some(id => { const t = tokenById.get(id); return t && t.redacted; });
+<<<<<<< HEAD
   const placeholder = (cand.replacement && cand.replacement.trim()) || (isAnyRedacted ? getAutoLabel(candidateCategory(cand), cand.text) : null);
+=======
+  const placeholder = (value && value.trim()) || (isAnyRedacted ? getAutoLabel((cand.category || 'SONSTIGES'), cand.text) : null);
+>>>>>>> 29002ace83c33424071c42ad28fe5e9756befd77
   cand.tokenIds.forEach(id => {
     const t = tokenById.get(id);
     if (!t || !t.redacted) return;
@@ -2865,7 +3376,11 @@ function toggleCandidate(key) {
   if (!cand) return;
   const makeRedacted = getCandidateState(cand) !== 'all';
   const placeholder = makeRedacted
+<<<<<<< HEAD
     ? ((cand.replacement && cand.replacement.trim()) || getAutoLabel(candidateCategory(cand), cand.text))
+=======
+    ? ((cand.replacement && cand.replacement.trim()) || getAutoLabel((cand.category || 'SONSTIGES'), cand.text))
+>>>>>>> 29002ace83c33424071c42ad28fe5e9756befd77
     : null;
 
   saveHistory(`${makeRedacted ? 'Schwärzen' : 'Aufheben'}: "${cand.text.substring(0, 20)}"`);
@@ -2912,7 +3427,11 @@ function toggleAllCandidates(makeRedacted) {
       const t = tokenById.get(id);
       if (t && t.redacted !== makeRedacted) {
         if (makeRedacted && placeholder === null) {
+<<<<<<< HEAD
           placeholder = (cand.replacement && cand.replacement.trim()) || getAutoLabel(candidateCategory(cand), cand.text);
+=======
+          placeholder = (cand.replacement && cand.replacement.trim()) || getAutoLabel((cand.category || 'SONSTIGES'), cand.text);
+>>>>>>> 29002ace83c33424071c42ad28fe5e9756befd77
         }
         t.redacted = makeRedacted;
         t.suggested = false;
@@ -2927,6 +3446,42 @@ function toggleAllCandidates(makeRedacted) {
   });
   refreshEditorUI();
   showToast(makeRedacted ? `${count} Vorkommen geschwärzt.` : `${count} Vorkommen aufgehoben.`, makeRedacted ? 'check-circle' : 'eraser');
+}
+
+// Kategorien, die automatisch (ohne Klick auf "Alle schwärzen") direkt nach der
+// Analyse geschwärzt werden — bewusst nur solche, die technisch eindeutig erkannt
+// werden (Regex + Prüfsumme/Format) und praktisch keine Fehlalarme produzieren.
+// Namen, Orte, Organisationen und Adressen bleiben ABSICHTLICH nur Vorschlag (gelb):
+// Wörterbuch-/NLP-basierte Erkennung kann danebenliegen (siehe z.B. die Korrektur
+// von "Herr"/Monatsnamen als fälschliche Namens-Treffer) — dort soll der Mensch
+// entscheiden, bevor etwas als geschwärzt gilt.
+const AUTO_REDACT_TYPES = new Set(['email', 'phone', 'iban', 'date']);
+
+// Wird einmal direkt nach der Analyse aufgerufen und danach jedes Mal erneut, wenn
+// NER/Presidio im Hintergrund neue Kandidaten nachliefern — deckt also auch Treffer
+// ab, die die schnelle JS-Heuristik nicht selbst gefunden hat. Bereits geschwärzte
+// oder nicht-sichere Kandidaten werden dabei nicht angefasst. Gibt die Anzahl der
+// automatisch geschwärzten KANDIDATEN zurück (nicht Token — für die Toast-Meldung).
+function autoRedactSafeCandidates() {
+  const toRedact = candidates.filter(c => AUTO_REDACT_TYPES.has(c.type) && getCandidateState(c) !== 'all');
+  if (toRedact.length === 0) return 0;
+
+  saveHistory('Sichere Kategorien automatisch geschwärzt');
+  const ordered = orderForRedaction(toRedact, c => c.text, c => c.tokenIds.reduce((m, id) => Math.min(m, id), Infinity));
+  ordered.forEach(cand => {
+    let placeholder = null;
+    cand.tokenIds.forEach(id => {
+      const t = tokenById.get(id);
+      if (!t || t.redacted) return;
+      if (placeholder === null) placeholder = (cand.replacement && cand.replacement.trim()) || getAutoLabel((cand.category || 'SONSTIGES'), cand.text);
+      t.redacted = true;
+      t.suggested = false;
+      tokenPlaceholder.set(t.id, placeholder);
+      updateTokenSpanClass(t);
+    });
+  });
+  refreshEditorUI();
+  return toRedact.length;
 }
 
 // ===========================
@@ -3614,6 +4169,7 @@ document.addEventListener('keydown', (e) => {
   }
   if (e.key === 'Escape') {
     hideExportOverlay();
+    if (document.getElementById('onboardingOverlay').classList.contains('show')) dismissOnboarding();
   }
 });
 
