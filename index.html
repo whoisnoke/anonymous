@@ -603,6 +603,23 @@
   }
   #exportOverlay.show { opacity: 1; pointer-events: all; }
 
+  /* ENDKONTROLLE-WARNUNG (vor dem Export) */
+  #auditWarningOverlay {
+    position: fixed;
+    inset: 0;
+    background: var(--overlay);
+    z-index: 550;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s;
+  }
+  #auditWarningOverlay.show { opacity: 1; pointer-events: all; }
+  #auditWarningList li { border-bottom: 1px solid var(--border); padding-bottom: 5px; }
+  #auditWarningList li:last-child { border-bottom: none; padding-bottom: 0; }
+
   .export-card {
     background: var(--surface);
     border-radius: 8px;
@@ -1221,6 +1238,20 @@
   </div>
 </div>
 
+<!-- ENDKONTROLLE: Warnung, falls im Ausgabetext noch unmarkierte Treffer stecken
+     (siehe runExportWithAudit() / auditProcessedTextForMissedPII()) -->
+<div id="auditWarningOverlay">
+  <div class="export-card" style="width:400px;">
+    <h3>Nicht alles geschwärzt?</h3>
+    <p>Die Endkontrolle hat im Ausgabetext noch Stellen gefunden, die wie personenbezogene Daten aussehen, aber nicht geschwärzt sind:</p>
+    <ul id="auditWarningList" style="list-style:none; display:flex; flex-direction:column; gap:6px; margin:-8px 0 20px; padding:10px 12px; background:var(--surface-muted); border:1px solid var(--border); border-radius:6px; font-family:'DM Mono',monospace; font-size:12px; color:var(--text); max-height:180px; overflow-y:auto;"></ul>
+    <div class="btn-row">
+      <button class="btn btn-ghost" onclick="cancelExportFromAudit()">Zurück zur Bearbeitung</button>
+      <button class="btn btn-danger" onclick="confirmExportAnyway()">Trotzdem exportieren</button>
+    </div>
+  </div>
+</div>
+
 <!-- TOAST -->
 <div id="toast">
   <i data-lucide="check-circle" size="16"></i>
@@ -1714,9 +1745,17 @@ function learnTerm(text) {
 let dictionaryIndex = new Map();
 function buildDictionaryIndex() {
   dictionaryIndex = new Map();
+  // dictionary.json enthält denselben Namen teils hunderte Male (Artefakt des
+  // Scrapings, siehe fast_scrape.py) — ohne diese Sperre würde ein einziger
+  // Treffer im Text ebenso oft in tokenIds/occurrences gezählt, was die "×N"-
+  // Anzeige in der Kandidatenliste und die Endkontrolle verfälscht.
+  const seen = new Set();
   dictionaryTerms.forEach(entry => {
     const words = String(entry).trim().split(/\s+/).filter(Boolean);
     if (words.length === 0) return;
+    const dedupeKey = words.map(w => w.toLowerCase()).join(' ');
+    if (seen.has(dedupeKey)) return;
+    seen.add(dedupeKey);
     const firstLower = words[0].toLowerCase();
     if (!dictionaryIndex.has(firstLower)) dictionaryIndex.set(firstLower, []);
     dictionaryIndex.get(firstLower).push({ words, entry });
@@ -3426,21 +3465,127 @@ function getProcessedText(fallbackOverride) {
   return result;
 }
 
-function copyText() {
+// ===========================
+// ENDKONTROLLE (vor jedem Export) — läuft komplett lokal, ohne KI/Server: wendet
+// dieselben Erkenner, die schon bei der Analyse laufen (Datum/E-Mail/Telefon/IBAN/
+// Adresse/Namen/Wörterbuch), nochmal auf den AUSGABETEXT an. Ein Treffer hier
+// bedeutet: diese Stelle sieht wie personenbezogene Daten aus, ist im Export aber
+// (noch) NICHT geschwärzt — z.B. weil sie bei der ersten Analyse übersehen oder
+// nachträglich wieder freigegeben wurde. Bewusst OHNE NER-/Presidio-Server und
+// ohne Cloud-KI, damit die Kontrolle immer verfügbar ist und nichts zusätzlich
+// den Browser verlässt.
+// Platzhalter wie "[PERSON 1]" oder "[ANONYMISIERT]" beginnen selbst mit einem
+// großgeschriebenen Wort — steht direkt davor noch ein unveränderter Anrede-Anker
+// wie "Herr" (der Anker selbst ist nie Teil des geschwärzten Blocks, siehe
+// detectNameCandidates), würde die Namens-Erkennung "Herr [PERSON" fälschlich als
+// neuen Namen "PERSON" lesen. Vor der Prüfung daher durch ein garantiert
+// unauffälliges Wort ersetzen — betrifft nur diesen internen Prüflauf, nicht den
+// tatsächlichen Export.
+function stripPlaceholdersForAudit(text) {
+  return text.replace(/\[[^\[\]\n]{1,40}\]/g, 'geschwärzt');
+}
+
+function auditProcessedTextForMissedPII(text) {
+  // Der laufende Bearbeitungsstand darf durch diesen Prüflauf nicht verändert
+  // werden — tokenize() arbeitet auf denselben globalen Variablen wie die
+  // normale Analyse. tokenPlaceholder wird von tokenize() per .clear() GELEERT
+  // (nicht neu zugewiesen) — eine bloße Referenz würde also mitgeleert werden,
+  // daher hier eine echte Kopie sichern, nicht nur den Verweis.
+  const savedTokens = tokens, savedCandidates = candidates, savedPlaceholders = new Map(tokenPlaceholder),
+        savedCounters = categoryCounters, savedAssignments = categoryAssignments;
+
+  tokenize(stripPlaceholdersForAudit(text)); // volle Erkennungs-Pipeline, diesmal auf dem Ausgabetext
+  const leftover = candidates.slice();
+
+  tokens = savedTokens; candidates = savedCandidates; tokenPlaceholder = savedPlaceholders;
+  categoryCounters = savedCounters; categoryAssignments = savedAssignments;
+  rebuildTokenIndex();
+
+  return leftover;
+}
+
+let pendingExportAction = null; // wird nach Bestätigung im Warnhinweis ausgeführt
+
+// Prüft vor einem Export, ob im Ausgabetext noch unmarkierte Treffer stecken.
+// Ohne Fund läuft exportAction sofort durch — der Dialog erscheint nur, wenn es
+// tatsächlich etwas zu klären gibt.
+function runExportWithAudit(exportAction) {
+  const leftover = auditProcessedTextForMissedPII(getProcessedText());
+  // Rückgabewert durchreichen: exportPDF() ist async — wer exportPDF()/copyText()
+  // etc. selbst awaitet (z.B. Tests), soll auch wirklich auf den Abschluss warten.
+  if (leftover.length === 0) return exportAction();
+  pendingExportAction = exportAction;
+  showAuditWarning(leftover);
+}
+
+// Dieselbe Textstelle taucht oft unter mehreren Kandidaten auf (z.B. "Peter",
+// "Zorn" UND "Peter Zorn" für dieselbe Person, je nach Erkenner) — für die reine
+// Anzeige hier auf den jeweils längsten, nicht in einem anderen enthaltenen
+// Treffer eindampfen, damit die Warnliste nicht dreifach dasselbe nennt. Ändert
+// nichts an der eigentlichen Ja/Nein-Entscheidung (die basiert weiterhin auf der
+// vollständigen, nicht eingedampften Liste).
+function dedupeOverlappingCandidates(list) {
+  const ordered = [...list].sort((a, b) => b.tokenIds.length - a.tokenIds.length);
+  const kept = [];
+  ordered.forEach(cand => {
+    const alreadyCovered = kept.some(k => cand.tokenIds.every(id => k.tokenIds.includes(id)));
+    if (!alreadyCovered) kept.push(cand);
+  });
+  return kept;
+}
+
+function showAuditWarning(leftover) {
+  const list = document.getElementById('auditWarningList');
+  list.innerHTML = '';
+  const deduped = dedupeOverlappingCandidates(leftover);
+  const shown = deduped.slice(0, 20);
+  shown.forEach(cand => {
+    const li = document.createElement('li');
+    const label = (CANDIDATE_TYPE_META[cand.type] && CANDIDATE_TYPE_META[cand.type].label) || cand.type;
+    li.textContent = `${cand.text} — ${label}`;
+    list.appendChild(li);
+  });
+  const more = deduped.length - shown.length;
+  if (more > 0) {
+    const li = document.createElement('li');
+    li.style.fontStyle = 'italic';
+    li.textContent = `… und ${more} weitere`;
+    list.appendChild(li);
+  }
+  document.getElementById('auditWarningOverlay').classList.add('show');
+}
+
+function cancelExportFromAudit() {
+  document.getElementById('auditWarningOverlay').classList.remove('show');
+  pendingExportAction = null;
+}
+
+function confirmExportAnyway() {
+  const action = pendingExportAction;
+  document.getElementById('auditWarningOverlay').classList.remove('show');
+  pendingExportAction = null;
+  if (action) return action();
+}
+
+function copyText() { return runExportWithAudit(_copyText); }
+function copyTextXXX() { return runExportWithAudit(_copyTextXXX); }
+function downloadTxt() { return runExportWithAudit(_downloadTxt); }
+
+function _copyText() {
   const text = getProcessedText();
   navigator.clipboard.writeText(text).then(() => {
     showToast('Text kopiert!', 'clipboard-copy');
   });
 }
 
-function copyTextXXX() {
+function _copyTextXXX() {
   const text = getProcessedText('[XXX]');
   navigator.clipboard.writeText(text).then(() => {
     showToast('Text mit [XXX] kopiert!', 'clipboard');
   });
 }
 
-function downloadTxt() {
+function _downloadTxt() {
   const text = getProcessedText();
   const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
   const url = URL.createObjectURL(blob);
@@ -3492,7 +3637,9 @@ function hideExportOverlay() {
   document.getElementById('exportOverlay').classList.remove('show');
 }
 
-async function exportPDF() {
+function exportPDF() { return runExportWithAudit(_exportPDF); }
+
+async function _exportPDF() {
   const btn = document.getElementById('btnExportPDF');
   btn.disabled = true;
   btn.innerHTML = '<span style="opacity:.6">Erstelle PDF…</span>';
@@ -3824,6 +3971,7 @@ document.addEventListener('keydown', (e) => {
   }
   if (e.key === 'Escape') {
     hideExportOverlay();
+    cancelExportFromAudit();
     if (document.getElementById('onboardingOverlay').classList.contains('show')) dismissOnboarding();
   }
 });
